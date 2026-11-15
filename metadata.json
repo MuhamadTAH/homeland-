@@ -1,0 +1,6 @@
+{
+  "name": "KVIST — Calm objects for slow homes",
+  "description": "Solid oak, bouclé and hand-thrown clay. KVIST makes furniture, lighting and textiles for slow homes, dispatched in 48 hours.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

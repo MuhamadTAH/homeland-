@@ -1,0 +1,128 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Geist", "IBM Plex Sans Arabic", "Vazirmatn", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", "IBM Plex Sans Arabic", "Vazirmatn", ui-monospace, monospace;
+  --font-display: "Bricolage Grotesque", "Readex Pro", "IBM Plex Sans Arabic", "Vazirmatn", ui-sans-serif, sans-serif;
+
+  --color-canvas: #f2efe9;
+  --color-card: #fbfaf7;
+  --color-ink: #1c1b18;
+  --color-ink-soft: #57544c;
+  --color-ink-faint: #7d796f;
+  --color-line: #e2ddd2;
+  --color-accent: #2f47d0;
+  --color-accent-soft: #e2e6fa;
+  --color-sand: #ebe2d4;
+  --color-sage: #dbe4d3;
+  --color-sky: #dbe3ee;
+  --color-blush: #efded7;
+  --color-butter: #f1e7c6;
+  --color-stone: #e5e2db;
+  --color-ok: #23784b;
+  --color-ok-soft: #dcefe2;
+  --color-warn: #9a6512;
+  --color-warn-soft: #f6e8cc;
+  --color-danger: #b23a27;
+
+  --radius-tile: 1.75rem;
+  --shadow-tile: 0 1px 0 #1c1b180a, 0 14px 34px -20px #1c1b1833;
+  --shadow-lift: 0 28px 50px -26px #1c1b1861;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+
+  --breakpoint-3xl: 112.5rem;
+}
+
+:root {
+  --radius-tile: 1.75rem;
+  --shadow-tile: 0 1px 0 #1c1b180a, 0 14px 34px -20px #1c1b1833;
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+html,
+body {
+  background-color: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Calibrated RTL Typography for Kurdish Sorani (ckb) & Arabic (ar) */
+html[dir="rtl"],
+html[dir="rtl"] body {
+  font-family: "IBM Plex Sans Arabic", "Vazirmatn", sans-serif;
+  line-height: 1.65;
+}
+
+::selection {
+  background-color: var(--color-ink);
+  color: var(--color-canvas);
+}
+
+.tile {
+  background: var(--color-card);
+  border-radius: var(--radius-tile);
+  box-shadow: var(--shadow-tile);
+}
+
+.display {
+  font-family: var(--font-display);
+  letter-spacing: -0.035em;
+  font-weight: 650;
+  line-height: 0.95;
+}
+
+html[dir="rtl"] .display {
+  font-family: "Readex Pro", "IBM Plex Sans Arabic", "Vazirmatn", sans-serif;
+  font-weight: 600;
+  letter-spacing: 0 !important;
+  line-height: 1.24;
+}
+
+html[dir="rtl"] .font-display {
+  font-family: "Readex Pro", "IBM Plex Sans Arabic", "Vazirmatn", sans-serif;
+  font-weight: 600;
+  letter-spacing: 0 !important;
+  line-height: 1.28;
+}
+
+html[dir="rtl"] .font-mono {
+  font-family: "IBM Plex Sans Arabic", "Vazirmatn", "Geist Mono", sans-serif;
+  letter-spacing: 0 !important;
+}
+
+.eyebrow-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--color-ink-soft);
+}
+
+html[dir="rtl"] .eyebrow-label {
+  font-family: "IBM Plex Sans Arabic", "Vazirmatn", sans-serif;
+  font-size: 12.5px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0 !important;
+  color: var(--color-ink-soft);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+.shadow-lift {
+  box-shadow: 0 28px 50px -26px #1c1b1861;
+}
+
+.shadow-tile {
+  box-shadow: 0 1px 0 #1c1b180a, 0 14px 34px -20px #1c1b1833;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
