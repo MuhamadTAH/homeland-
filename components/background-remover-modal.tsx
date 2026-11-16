@@ -142,6 +142,7 @@ function BackgroundRemoverContent({
   const [trimEdges, setTrimEdges] = useState(true);
   const [keepOriginalAsScene, setKeepOriginalAsScene] = useState(false);
   const [undoCount, setUndoCount] = useState(0);
+  const [originalDataUrl, setOriginalDataUrl] = useState<string>('');
 
   const displayCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const originalCanvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -172,10 +173,11 @@ function BackgroundRemoverContent({
         setError(null);
         setProgressPct(10);
 
-        const { blob, width, height, originalDataUrl } =
+        const { blob, width, height, originalDataUrl: origUrl } =
           await fileOrUrlToNormalizedBlob(source);
         if (cancelled) return;
-        originalDataUrlRef.current = originalDataUrl;
+        originalDataUrlRef.current = origUrl;
+        setOriginalDataUrl(origUrl);
 
         // Draw original image onto hidden reference canvas for Restore Brush
         const origImg = await createImageBitmap(blob);
@@ -474,9 +476,9 @@ function BackgroundRemoverContent({
                       showOriginal ? 'hidden' : 'cursor-crosshair'
                     }`}
                   />
-                  {showOriginal && originalDataUrlRef.current && (
+                  {showOriginal && originalDataUrl && (
                     <img
-                      src={originalDataUrlRef.current}
+                      src={originalDataUrl}
                       alt="Original photo"
                       className="max-h-full max-w-full object-contain"
                     />

@@ -6,6 +6,8 @@ import {
   uploadImageBufferToSanity,
 } from '@/lib/sanity';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   const config = getSanityConfig();
   if (!isSanityConfigured()) {

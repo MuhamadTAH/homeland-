@@ -7,6 +7,8 @@ import {
 } from '@/lib/sanity';
 import { RoomScene } from '@/lib/catalog';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   if (!isSanityConfigured()) {
     return NextResponse.json({

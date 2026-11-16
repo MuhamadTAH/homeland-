@@ -10,29 +10,36 @@ import {
 } from './catalog';
 
 // Sanity Environment Configuration
-const projectId =
+const rawProjectId = (
   process.env.NEXT_PUBLIC_SANITY_PROJECT_ID ||
   process.env.SANITY_PROJECT_ID ||
-  '';
+  ''
+).trim();
 
-const dataset =
+const isValidSanityProjectId = (id: string) => /^[a-z0-9-]+$/.test(id);
+const projectId = isValidSanityProjectId(rawProjectId) ? rawProjectId : '';
+
+const rawDataset = (
   process.env.NEXT_PUBLIC_SANITY_DATASET ||
   process.env.SANITY_DATASET ||
-  'production';
+  'production'
+).trim();
+const dataset = /^[a-z0-9_-]+$/.test(rawDataset) ? rawDataset : 'production';
 
 const apiVersion = '2024-03-01';
-const token = process.env.SANITY_API_TOKEN || '';
+const token = (process.env.SANITY_API_TOKEN || '').trim();
 
 export function isSanityConfigured(): boolean {
-  return Boolean(projectId && projectId.trim() !== '');
+  return Boolean(projectId && projectId !== 'demo');
 }
 
 export function getSanityConfig() {
   return {
-    projectId: projectId.trim(),
-    dataset: dataset.trim(),
+    projectId,
+    dataset,
     apiVersion,
-    hasToken: Boolean(token && token.trim() !== ''),
+    hasToken: Boolean(token),
+    invalidProjectId: Boolean(rawProjectId && !projectId),
   };
 }
 
@@ -46,9 +53,9 @@ export const sanityClient = createClient({
 
 // Client with Write Token for Server Mutations (create, update, delete)
 export function getSanityWriteClient() {
-  if (!projectId || !token) {
+  if (!isSanityConfigured() || !token) {
     throw new Error(
-      'Sanity write operations require NEXT_PUBLIC_SANITY_PROJECT_ID and SANITY_API_TOKEN to be configured.'
+      'Sanity write operations require a valid NEXT_PUBLIC_SANITY_PROJECT_ID (lowercase a-z, 0-9, dashes) and SANITY_API_TOKEN.'
     );
   }
   return createClient({

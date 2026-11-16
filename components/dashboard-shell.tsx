@@ -15,11 +15,16 @@ import {
   LayoutGrid,
   Package,
   Tags,
+  Crosshair,
+  Orbit,
   ArrowUpLeft,
   ArrowUpRight,
   Menu,
   X,
-  Sparkles,
+  Plus,
+  Cloud,
+  RefreshCw,
+  ExternalLink,
 } from 'lucide-react';
 import { Logo } from './ui-primitives';
 import { LanguageSwitcher } from './store-shell';
@@ -36,6 +41,15 @@ import {
   slugifyProduct,
   uniqueProductSlug,
 } from '@/lib/catalog';
+import { getDashCopy } from '@/lib/dashboard-i18n';
+
+export interface SanityConnectionInfo {
+  connected: boolean;
+  productCount: number;
+  projectId: string;
+  dataset: string;
+  message: string;
+}
 
 export interface CatalogManager {
   products: Product[];
@@ -50,6 +64,7 @@ export interface CatalogManager {
     existing?: Product | null
   ) => Promise<void>;
   setProductStatus: (id: string, status: 'active' | 'draft') => Promise<void>;
+  updateStock: (id: string, stock: number) => Promise<void>;
   deleteProduct: (id: string) => Promise<void>;
   importStarterCatalog: () => Promise<void>;
   createCategory: (name: string) => Promise<Category>;
@@ -61,6 +76,10 @@ export interface CatalogManager {
 export interface DashboardContextValue {
   now: number;
   catalog: CatalogManager;
+  sanityStatus: SanityConnectionInfo | null;
+  sanitySyncing: boolean;
+  refreshSanityStatus: () => Promise<void>;
+  syncCatalogFromSanity: () => Promise<{ count: number; source: 'sanity' | 'local' }>;
 }
 
 const DashboardContext = createContext<DashboardContextValue | null>(null);
@@ -73,7 +92,8 @@ export function useDashboard() {
 
 export function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const { dir, t } = useShowroom();
+  const { locale, dir, t } = useShowroom();
+  const d = getDashCopy(locale);
   const CornerArrow = dir === 'rtl' ? ArrowUpLeft : ArrowUpRight;
 
   const {
@@ -89,6 +109,9 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
 
   const [now] = useState(() => Date.now());
   const [drawerOpenPath, setDrawerOpenPath] = useState<string | null>(null);
+  const [sanityStatus, setSanityStatus] = useState<SanityConnectionInfo | null>(null);
+  const [sanitySyncing, setSanitySyncing] = useState(false);
+
   const drawerOpen = drawerOpenPath === pathname;
 
   const setDrawerOpen = useCallback(
@@ -97,6 +120,43 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     },
     [pathname]
   );
+
+  const refreshSanityStatus = useCallback(async () => {
+    try {
+      const res = await fetch('/api/sanity/status');
+      if (res.ok) {
+        const data = await res.json();
+        setSanityStatus(data);
+      }
+    } catch {
+      // non-fatal
+    }
+  }, []);
+
+  const syncCatalogFromSanity = useCallback(async () => {
+    setSanitySyncing(true);
+    try {
+      const result = await demoBackend.syncFromSanity();
+      await demoBackend.syncRoomSceneFromSanity();
+      await refreshSanityStatus();
+      return result;
+    } finally {
+      setSanitySyncing(false);
+    }
+  }, [refreshSanityStatus]);
+
+  useEffect(() => {
+    let active = true;
+    fetch('/api/sanity/status')
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (active && data) setSanityStatus(data);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (!drawerOpen) return;
@@ -144,6 +204,10 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
       setProductStatus: async (id, status) => {
         await demoBackend.updateProduct(id, { status });
       },
+      updateStock: async (id, stock) => {
+        const clamped = Math.max(0, Math.round(stock));
+        await demoBackend.updateProduct(id, { stock: clamped });
+      },
       deleteProduct: async (id) => {
         await demoBackend.deleteProduct(id);
       },
@@ -177,57 +241,74 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     categoriesLoaded,
   ]);
 
-  const draftCount = useMemo(
-    () => allProducts.filter((p) => p.status === 'draft').length,
+  const lowStockCount = useMemo(
+    () => allProducts.filter((p) => p.stock <= 12).length,
     [allProducts]
   );
 
   const navItems = [
-    { to: '/dashboard', label: t.studioOverview, icon: LayoutGrid, exact: true },
+    { to: '/dashboard', label: d.navOverview, icon: LayoutGrid, exact: true },
     {
       to: '/dashboard/products',
-      label: t.piecesNav,
+      label: d.navProducts,
       icon: Package,
-      badge: allProducts.length,
-      subBadge: draftCount > 0 ? `${draftCount} draft` : undefined,
+      count: allProducts.length,
+      alertCount: lowStockCount,
     },
     {
       to: '/dashboard/categories',
-      label: t.collectionsNav,
+      label: d.navCategories,
       icon: Tags,
-      badge: categories.length,
+      count: categories.length,
+    },
+    {
+      to: '/dashboard/room',
+      label: d.navRoom,
+      icon: Crosshair,
+    },
+    {
+      to: '/add',
+      label: d.navAddStudio,
+      icon: Orbit,
     },
   ];
 
+  const currentSectionLabel = useMemo(() => {
+    if (pathname === '/dashboard') return d.navOverview;
+    if (pathname.startsWith('/dashboard/products')) return d.navProducts;
+    if (pathname.startsWith('/dashboard/categories')) return d.navCategories;
+    if (pathname.startsWith('/dashboard/room')) return d.navRoom;
+    return d.workspace;
+  }, [pathname, d]);
+
   const renderSidebarContent = (onCloseMobile?: () => void) => (
-    <>
-      <div className="flex items-center justify-between px-3 py-2.5">
-        <Link href="/dashboard" onClick={onCloseMobile} className="inline-flex items-center">
+    <div className="flex h-full flex-col">
+      {/* Brand header */}
+      <div className="flex items-center justify-between border-b border-line pb-4">
+        <Link
+          href="/dashboard"
+          onClick={onCloseMobile}
+          className="inline-flex items-center gap-2 whitespace-nowrap shrink-0"
+        >
           <Logo />
         </Link>
-        <div className="flex items-center gap-1.5">
-          <span className="rounded-md bg-canvas px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-ink-soft">
-            {t.studio}
-          </span>
-          {onCloseMobile && (
-            <button
-              type="button"
-              onClick={onCloseMobile}
-              aria-label={t.closeMenu}
-              className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-soft hover:bg-canvas hover:text-ink lg:hidden"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
-        </div>
+        {onCloseMobile ? (
+          <button
+            type="button"
+            onClick={onCloseMobile}
+            aria-label={t.closeMenu}
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-ink-soft hover:bg-canvas hover:text-ink lg:hidden"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        ) : (
+          <span className="text-[11px] font-medium text-ink-faint">{t.studio}</span>
+        )}
       </div>
 
-      <div className="mt-3 px-2">
-        <LanguageSwitcher compact />
-      </div>
-
+      {/* Primary Workspace Nav */}
       <nav className="mt-5 space-y-1">
-        <div className="px-3 pb-1.5 text-[11px] font-medium uppercase tracking-[0.14em] text-ink-faint">
+        <div className="px-2.5 pb-1.5 text-[11px] font-medium text-ink-faint">
           {t.catalogCuration}
         </div>
         {navItems.map((item) => {
@@ -240,33 +321,29 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
               key={item.to}
               href={item.to}
               onClick={onCloseMobile}
-              className={`group flex items-center justify-between rounded-xl px-3 py-2.5 text-[13px] font-medium transition-colors ${
+              className={`group flex h-10 items-center justify-between rounded-xl px-3 text-[13px] font-medium transition-colors ${
                 isActive
                   ? 'bg-ink text-card'
                   : 'text-ink-soft hover:bg-canvas hover:text-ink'
               }`}
             >
-              <span className="flex items-center gap-2.5">
-                <Icon className="h-4 w-4" />
-                {item.label}
+              <span className="flex min-w-0 items-center gap-2.5">
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="truncate whitespace-nowrap">{item.label}</span>
               </span>
-              {item.badge !== undefined && (
-                <span className="flex items-center gap-1">
-                  {item.subBadge && (
+              {item.count !== undefined && (
+                <span className="flex shrink-0 items-center gap-2 font-mono text-[11px] tabular">
+                  {item.alertCount ? (
                     <span
-                      className={`rounded-full px-1.5 py-0.5 font-mono text-[10px] tabular ${
-                        isActive ? 'bg-card/15 text-card/80' : 'bg-warn-soft text-warn'
-                      }`}
+                      className={
+                        isActive ? 'text-warn-soft' : 'font-semibold text-warn'
+                      }
                     >
-                      {item.subBadge}
+                      {item.alertCount}!
                     </span>
-                  )}
-                  <span
-                    className={`rounded-full px-2 py-0.5 font-mono text-[11px] tabular ${
-                      isActive ? 'bg-card/15 text-card' : 'bg-canvas text-ink-soft'
-                    }`}
-                  >
-                    {item.badge}
+                  ) : null}
+                  <span className={isActive ? 'text-card/75' : 'text-ink-faint'}>
+                    {item.count}
                   </span>
                 </span>
               )}
@@ -274,44 +351,84 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
           );
         })}
 
-        <div className="px-3 pt-5 pb-1.5 text-[11px] font-medium uppercase tracking-[0.14em] text-ink-faint">
+        {/* Storefront & Cloud */}
+        <div className="px-2.5 pt-6 pb-1.5 text-[11px] font-medium text-ink-faint">
           {t.publicShowroom}
         </div>
         <Link
           href="/"
           onClick={onCloseMobile}
-          className="flex items-center justify-between rounded-xl px-3 py-2.5 text-[13px] font-medium text-ink-soft transition-colors hover:bg-canvas hover:text-ink"
+          className="flex h-10 items-center justify-between rounded-xl px-3 text-[13px] font-medium text-ink-soft transition-colors hover:bg-canvas hover:text-ink"
         >
-          <span>{t.showroomHome}</span>
-          <CornerArrow className="h-4 w-4" />
+          <span className="truncate whitespace-nowrap">{t.showroomHome}</span>
+          <CornerArrow className="h-3.5 w-3.5 shrink-0" />
         </Link>
         <Link
           href="/shop"
           onClick={onCloseMobile}
-          className="flex items-center justify-between rounded-xl px-3 py-2.5 text-[13px] font-medium text-ink-soft transition-colors hover:bg-canvas hover:text-ink"
+          className="flex h-10 items-center justify-between rounded-xl px-3 text-[13px] font-medium text-ink-soft transition-colors hover:bg-canvas hover:text-ink"
         >
-          <span>{t.fullCatalog}</span>
-          <CornerArrow className="h-4 w-4" />
+          <span className="truncate whitespace-nowrap">{t.fullCatalog}</span>
+          <CornerArrow className="h-3.5 w-3.5 shrink-0" />
         </Link>
+        <a
+          href="https://kvist-yx4kz08m.sanity.studio/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex h-10 items-center justify-between rounded-xl px-3 text-[13px] font-medium text-ink-soft transition-colors hover:bg-canvas hover:text-ink"
+        >
+          <span className="truncate whitespace-nowrap">{d.externalSanityStudio}</span>
+          <ExternalLink className="h-3.5 w-3.5 shrink-0" />
+        </a>
       </nav>
 
+      {/* Bottom Sanity Cloud Connection Panel */}
       <div className="mt-auto pt-6">
-        <div className="rounded-2xl bg-canvas p-4">
-          <div className="flex items-center gap-2 text-[12px] font-medium text-ink">
-            <Sparkles className="h-4 w-4 text-accent" />
-            <span>{t.showroomCatalogMode}</span>
+        <div className="rounded-2xl border border-line bg-canvas p-4">
+          <div className="flex items-center justify-between gap-2">
+            <span className="flex items-center gap-2 text-[12px] font-semibold text-ink">
+              <Cloud className="h-4 w-4 text-accent" />
+              <span className="truncate">
+                {sanityStatus?.connected ? d.sanityConnected : d.sanityStandby}
+              </span>
+            </span>
+            <button
+              type="button"
+              onClick={() => syncCatalogFromSanity()}
+              disabled={sanitySyncing}
+              title={d.syncSanity}
+              aria-label={d.syncSanity}
+              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-line bg-card text-ink-soft transition-colors hover:border-ink hover:text-ink disabled:opacity-50"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${sanitySyncing ? 'animate-spin' : ''}`} />
+            </button>
           </div>
-          <p className="mt-1.5 text-[11px] leading-[1.5] text-ink-soft">
-            {t.showroomCatalogModeDesc}
-          </p>
+          <div className="mt-2 flex items-center gap-1.5 font-mono text-[11px] text-ink-soft tabular">
+            <span>{sanityStatus?.projectId || 'yx4kz08m'}</span>
+            <span aria-hidden="true">·</span>
+            <span>{sanityStatus?.dataset || 'production'}</span>
+            {sanityStatus?.connected && (
+              <>
+                <span aria-hidden="true">·</span>
+                <span>{sanityStatus.productCount}</span>
+              </>
+            )}
+          </div>
+          <div className="mt-3 lg:hidden">
+            <LanguageSwitcher compact />
+          </div>
         </div>
       </div>
-    </>
+    </div>
   );
 
   const ctxValue: DashboardContextValue = {
     now,
     catalog,
+    sanityStatus,
+    sanitySyncing,
+    refreshSanityStatus,
+    syncCatalogFromSanity,
   };
 
   const drawerOffset = dir === 'rtl' ? '100%' : '-100%';
@@ -320,37 +437,33 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
     <DashboardContext.Provider value={ctxValue}>
       <div className="min-h-screen bg-canvas">
         <div className="mx-auto max-w-[1440px] px-3 sm:px-6 lg:px-8">
-          {/* Mobile Header */}
-          <div className="sticky top-2 z-30 pt-2 lg:hidden">
-            <div className="tile flex items-center justify-between px-3.5 py-2.5 shadow-tile">
-              <div className="flex items-center gap-2.5">
+          {/* Mobile Header — Compact <= 15% height */}
+          <header className="sticky top-2 z-30 pt-2 lg:hidden">
+            <div className="flex items-center justify-between gap-3 rounded-2xl border border-line bg-card/95 px-3.5 py-2.5 shadow-tile backdrop-blur">
+              <div className="flex min-w-0 items-center gap-2.5">
                 <button
                   type="button"
                   onClick={() => setDrawerOpen(true)}
                   aria-label={t.openMenu}
-                  className="flex h-9 w-9 items-center justify-center rounded-xl bg-canvas text-ink transition-colors hover:bg-sand"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-canvas text-ink transition-colors hover:bg-sand"
                 >
                   <Menu className="h-4 w-4" />
                 </button>
-                <Link href="/dashboard" className="inline-flex items-center">
+                <Link href="/dashboard" className="inline-flex items-center shrink-0">
                   <Logo />
                 </Link>
-                <span className="rounded-md bg-canvas px-1.5 py-0.5 font-mono text-[10px] uppercase tracking-[0.14em] text-ink-soft">
-                  {t.studio}
-                </span>
               </div>
-              <div className="flex items-center gap-2">
-                <LanguageSwitcher compact />
+              <div className="flex shrink-0 items-center gap-2">
                 <Link
-                  href="/"
-                  className="inline-flex items-center gap-1 rounded-full bg-ink px-3 py-1 text-[11px] font-medium text-card"
+                  href="/dashboard/products?new=1"
+                  className="inline-flex h-9 items-center gap-1.5 rounded-full bg-ink px-3.5 text-[12px] font-medium text-card whitespace-nowrap shrink-0 hover:bg-accent"
                 >
-                  {t.showroom}
-                  <CornerArrow className="h-3 w-3" />
+                  <Plus className="h-3.5 w-3.5" />
+                  <span>{d.newPieceCta}</span>
                 </Link>
               </div>
             </div>
-          </div>
+          </header>
 
           {/* Mobile Drawer */}
           <AnimatePresence>
@@ -360,7 +473,7 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2 }}
+                  transition={{ duration: 0.18 }}
                   onClick={() => setDrawerOpen(false)}
                   className="fixed inset-0 z-40 bg-ink/40 backdrop-blur-[2px] lg:hidden"
                 />
@@ -368,8 +481,8 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
                   initial={{ x: drawerOffset }}
                   animate={{ x: 0 }}
                   exit={{ x: drawerOffset }}
-                  transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-                  className="fixed top-0 start-0 z-50 flex h-full w-[280px] max-w-[84vw] flex-col bg-card p-4 shadow-lift lg:hidden"
+                  transition={{ duration: 0.26, ease: [0.16, 1, 0.3, 1] }}
+                  className="fixed top-0 start-0 z-50 flex h-full w-[280px] max-w-[85vw] flex-col border-e border-line bg-card p-5 shadow-lift lg:hidden"
                 >
                   {renderSidebarContent(() => setDrawerOpen(false))}
                 </motion.aside>
@@ -377,16 +490,84 @@ export function DashboardShell({ children }: { children: React.ReactNode }) {
             )}
           </AnimatePresence>
 
-          {/* Main Grid */}
-          <div className="grid grid-cols-1 gap-3 py-3 lg:grid-cols-12 lg:py-5">
-            <aside className="hidden lg:col-span-3 lg:block xl:col-span-2">
-              <div className="tile sticky top-5 flex min-h-[calc(100vh-2.5rem)] flex-col p-4">
+          {/* Desktop Workspace Layout */}
+          <div className="flex flex-col gap-5 py-4 lg:flex-row lg:items-start lg:py-6">
+            {/* Fixed-Width Left Sidebar (256px) */}
+            <aside className="hidden w-[256px] shrink-0 lg:block">
+              <div className="sticky top-6 flex min-h-[calc(100vh-3rem)] flex-col rounded-[24px] border border-line bg-card p-5">
                 {renderSidebarContent()}
               </div>
             </aside>
-            <main className="min-w-0 space-y-3 lg:col-span-9 xl:col-span-10">
-              {children}
-            </main>
+
+            {/* Right Content Area */}
+            <div className="min-w-0 flex-1 space-y-5">
+              {/* Clean 3-Zone Workspace Top Bar */}
+              <header className="hidden h-14 items-center justify-between gap-8 rounded-2xl border border-line bg-card px-5 lg:flex">
+                <div className="flex min-w-0 items-center gap-2 text-[13px] whitespace-nowrap shrink-0">
+                  <Link
+                    href="/dashboard"
+                    className="font-medium text-ink-soft transition-colors hover:text-ink"
+                  >
+                    {d.workspace}
+                  </Link>
+                  <span className="text-ink-faint" aria-hidden="true">
+                    /
+                  </span>
+                  <span className="font-semibold text-ink">{currentSectionLabel}</span>
+                </div>
+
+                <nav className="flex items-center gap-6 text-[13px] font-medium text-ink-soft">
+                  <Link
+                    href="/dashboard"
+                    className={`whitespace-nowrap shrink-0 transition-colors hover:text-ink ${
+                      pathname === '/dashboard' ? 'text-ink underline underline-offset-4' : ''
+                    }`}
+                  >
+                    {d.navOverview}
+                  </Link>
+                  <Link
+                    href="/dashboard/products"
+                    className={`whitespace-nowrap shrink-0 transition-colors hover:text-ink ${
+                      pathname.startsWith('/dashboard/products')
+                        ? 'text-ink underline underline-offset-4'
+                        : ''
+                    }`}
+                  >
+                    {d.navProducts}
+                  </Link>
+                  <Link
+                    href="/dashboard/room"
+                    className={`whitespace-nowrap shrink-0 transition-colors hover:text-ink ${
+                      pathname.startsWith('/dashboard/room')
+                        ? 'text-ink underline underline-offset-4'
+                        : ''
+                    }`}
+                  >
+                    {d.navRoom}
+                  </Link>
+                  <Link
+                    href="/"
+                    className="inline-flex items-center gap-1 whitespace-nowrap shrink-0 transition-colors hover:text-ink"
+                  >
+                    <span>{d.openShowroomCta}</span>
+                    <CornerArrow className="h-3.5 w-3.5" />
+                  </Link>
+                </nav>
+
+                <div className="flex shrink-0 items-center gap-3">
+                  <LanguageSwitcher compact />
+                  <Link
+                    href="/dashboard/products?new=1"
+                    className="inline-flex h-9 items-center gap-1.5 rounded-full bg-ink px-4 text-[12px] font-medium text-card whitespace-nowrap shrink-0 transition-colors hover:bg-accent"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    <span>{d.newPieceCta}</span>
+                  </Link>
+                </div>
+              </header>
+
+              <main className="min-w-0 space-y-5">{children}</main>
+            </div>
           </div>
         </div>
       </div>

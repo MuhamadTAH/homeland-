@@ -8,6 +8,8 @@ import {
 } from '@/lib/sanity';
 import { Product } from '@/lib/catalog';
 
+export const dynamic = 'force-dynamic';
+
 // GET: Fetch products from Sanity
 export async function GET() {
   if (!isSanityConfigured()) {

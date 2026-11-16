@@ -582,6 +582,8 @@ export interface ProductDraft {
   details: { key: string; text: string }[];
   dimensions: string;
   care: string;
+  view360Type: 'auto' | 'chair' | 'table' | 'lamp' | 'vase';
+  frames360: string[];
 }
 
 const uid = () =>
@@ -606,6 +608,8 @@ export function productToDraft(p?: Product | null): ProductDraft {
       details: p.details.map((text) => ({ key: uid(), text })),
       dimensions: p.dimensions,
       care: p.care,
+      view360Type: p.view360Type ?? 'auto',
+      frames360: Array.isArray(p.frames360) ? [...p.frames360] : [],
     };
   }
   return {
@@ -623,6 +627,8 @@ export function productToDraft(p?: Product | null): ProductDraft {
     details: [],
     dimensions: '',
     care: '',
+    view360Type: 'auto',
+    frames360: [],
   };
 }
 
@@ -710,6 +716,8 @@ export function validateProductDraft(
       details: draft.details.map((d) => d.text.trim()).filter(Boolean),
       dimensions: draft.dimensions.trim(),
       care: draft.care.trim(),
+      view360Type: draft.view360Type,
+      frames360: draft.frames360.filter(Boolean),
     },
   };
 }
@@ -718,8 +726,9 @@ export function isSameDraft(a: ProductDraft, b: ProductDraft): boolean {
   const serialize = (d: ProductDraft) =>
     JSON.stringify({
       ...d,
-      finishes: d.finishes.map(({ name, color }) => [name, color]),
+      finishes: d.finishes.map(({ name, color, soldOut }) => [name, color, Boolean(soldOut)]),
       details: d.details.map((x) => x.text),
+      frames360: d.frames360,
     });
   return serialize(a) === serialize(b);
 }

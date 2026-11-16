@@ -8,10 +8,13 @@ import {
   Trash2,
   Check,
   X,
+  ArrowUpLeft,
   ArrowUpRight,
   Lock,
+  Package,
 } from 'lucide-react';
 import { useDashboard } from '@/components/dashboard-shell';
+import { useShowroom } from '@/components/providers';
 import {
   useDashToast,
   DashToast,
@@ -20,12 +23,18 @@ import {
 } from '@/components/dashboard-ui';
 import {
   Category,
+  TINT_BG,
   validateCategoryName,
   findDuplicateCategory,
 } from '@/lib/catalog';
+import { localizeCategoryName } from '@/lib/i18n';
+import { getDashCopy } from '@/lib/dashboard-i18n';
 
 export default function DashboardCategoriesPage() {
   const { catalog } = useDashboard();
+  const { locale, dir, t } = useShowroom();
+  const d = getDashCopy(locale);
+  const CornerArrow = dir === 'rtl' ? ArrowUpLeft : ArrowUpRight;
   const { notice, show: showToast, dismiss } = useDashToast();
 
   // Inline rename state
@@ -39,16 +48,27 @@ export default function DashboardCategoriesPage() {
   const [reassignTo, setReassignTo] = useState<string>('');
   const [deleting, setDeleting] = useState(false);
 
-  const countsByCategory = useMemo(() => {
-    const map = new Map<string, { total: number; live: number; draft: number }>();
+  const statsByCategory = useMemo(() => {
+    const map = new Map<
+      string,
+      { total: number; live: number; draft: number; previews: string[] }
+    >();
     for (const c of catalog.categories) {
-      map.set(c.id, { total: 0, live: 0, draft: 0 });
+      map.set(c.id, { total: 0, live: 0, draft: 0, previews: [] });
     }
     for (const p of catalog.allProducts) {
-      const entry = map.get(p.category) || { total: 0, live: 0, draft: 0 };
+      const entry = map.get(p.category) || {
+        total: 0,
+        live: 0,
+        draft: 0,
+        previews: [],
+      };
       entry.total += 1;
       if (p.status === 'draft') entry.draft += 1;
       else entry.live += 1;
+      if (p.image && entry.previews.length < 3) {
+        entry.previews.push(p.image);
+      }
       map.set(p.category, entry);
     }
     return map;
@@ -80,7 +100,7 @@ export default function DashboardCategoriesPage() {
     setSavingRename(true);
     try {
       await catalog.renameCategory(cat.id, editName);
-      showToast(`Renamed category to "${editName.trim()}"`);
+      showToast(`"${editName.trim()}"`);
       cancelRename();
     } catch (err) {
       setEditError(err instanceof Error ? err.message : 'Could not rename category');
@@ -99,12 +119,12 @@ export default function DashboardCategoriesPage() {
     if (!deleteTarget) return;
     setDeleting(true);
     try {
-      const count = countsByCategory.get(deleteTarget.id)?.total || 0;
+      const count = statsByCategory.get(deleteTarget.id)?.total || 0;
       await catalog.deleteCategory(
         deleteTarget.id,
         count > 0 ? reassignTo : null
       );
-      showToast(`Deleted "${deleteTarget.name}"`);
+      showToast(`Removed "${deleteTarget.name}"`);
       setDeleteTarget(null);
     } catch (err) {
       showToast(err instanceof Error ? err.message : 'Could not delete category', 'error');
@@ -114,7 +134,7 @@ export default function DashboardCategoriesPage() {
   };
 
   const targetCount = deleteTarget
-    ? countsByCategory.get(deleteTarget.id)?.total || 0
+    ? statsByCategory.get(deleteTarget.id)?.total || 0
     : 0;
   const otherCategories = useMemo(
     () =>
@@ -125,35 +145,34 @@ export default function DashboardCategoriesPage() {
   );
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-5">
       {/* Header */}
-      <div className="tile flex flex-wrap items-center justify-between gap-4 p-6">
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-[24px] border border-line bg-card p-6">
         <div>
-          <div className="text-[11px] font-medium uppercase tracking-[0.14em] text-ink-soft">
-            Taxonomy · Storefront navigation
+          <div className="text-[12px] font-medium text-ink-soft">
+            {d.workspace} · {d.navCategories}
           </div>
-          <h1 className="display mt-1 text-[clamp(24px,3vw,32px)] font-semibold tracking-[-0.03em] text-ink">
-            Categories
+          <h1 className="display mt-1 text-balance text-[clamp(22px,2.8vw,32px)] font-semibold tracking-[-0.03em] text-ink">
+            {d.categoriesTitle}
           </h1>
+          <p className="mt-1 text-[13px] text-ink-soft">{d.categoriesSubtitle}</p>
         </div>
 
-        <div className="flex items-center gap-2 font-mono text-[12px] text-ink-soft">
-          <span className="rounded-full bg-canvas px-3.5 py-1.5 tabular">
-            <span className="font-semibold text-ink">{catalog.categories.length}</span> active
-            collections
-          </span>
+        <div className="font-mono text-[13px] text-ink-soft tabular">
+          <span className="font-semibold text-ink">{catalog.categories.length}</span>{' '}
+          {t.collectionsNav}
         </div>
       </div>
 
-      {/* Add Category Card */}
-      <div className="tile p-6">
+      {/* Add Category Bar */}
+      <div className="rounded-[24px] border border-line bg-card p-6">
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-12 lg:items-center">
           <div className="lg:col-span-5">
             <h2 className="display text-[18px] font-semibold tracking-[-0.02em] text-ink">
-              Add a collection
+              {d.addCollectionTitle}
             </h2>
-            <p className="mt-1 text-[12px] leading-[1.5] text-ink-soft">
-              New categories appear immediately in the Shop filter bar and product editor.
+            <p className="mt-1 text-[12.5px] leading-[1.5] text-ink-soft">
+              {d.addCollectionDesc}
             </p>
           </div>
           <div className="lg:col-span-7">
@@ -161,163 +180,177 @@ export default function DashboardCategoriesPage() {
               categories={catalog.categories}
               onCreate={catalog.createCategory}
               onCreated={(created) => {
-                showToast(`Added "${created.name}" collection`);
+                showToast(`Added "${created.name}"`);
               }}
-              submitLabel="Add category"
+              submitLabel={d.addCollectionBtn}
               autoFocus={false}
             />
           </div>
         </div>
       </div>
 
-      {/* Categories Table */}
-      <div className="tile p-5 sm:p-6">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] border-collapse text-left">
-            <thead>
-              <tr className="border-b border-line text-[11px] font-medium uppercase tracking-[0.12em] text-ink-faint">
-                <th className="pb-3 pl-2">Collection</th>
-                <th className="pb-3">Slug</th>
-                <th className="pb-3">Type</th>
-                <th className="pb-3">Pieces</th>
-                <th className="pb-3 pr-2 text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-line text-[13px]">
-              {catalog.categories.map((cat) => {
-                const counts = countsByCategory.get(cat.id) || {
-                  total: 0,
-                  live: 0,
-                  draft: 0,
-                };
-                const isEditing = editingId === cat.id;
+      {/* Visual Collection Grid */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {catalog.categories.map((cat) => {
+          const stats = statsByCategory.get(cat.id) || {
+            total: 0,
+            live: 0,
+            draft: 0,
+            previews: [],
+          };
+          const isEditing = editingId === cat.id;
+          const displayName = localizeCategoryName(cat.id, catalog.categoriesById, locale);
 
-                return (
-                  <tr
-                    key={cat.id}
-                    className="group transition-colors hover:bg-canvas/70"
-                  >
-                    <td className="py-4 pl-2">
-                      {isEditing ? (
-                        <div className="max-w-xs space-y-1">
-                          <div className="flex items-center gap-1.5">
-                            <input
-                              type="text"
-                              value={editName}
-                              autoFocus
-                              onChange={(e) => {
-                                setEditName(e.target.value);
-                                if (editError) setEditError(null);
-                              }}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  e.preventDefault();
-                                  handleCommitRename(cat);
-                                } else if (e.key === 'Escape') {
-                                  cancelRename();
-                                }
-                              }}
-                              disabled={savingRename}
-                              className="h-9 flex-1 rounded-xl border border-ink bg-card px-3 text-[13px] text-ink focus:outline-none"
+          return (
+            <div
+              key={cat.id}
+              className="flex flex-col justify-between rounded-[24px] border border-line bg-card p-5 transition-colors hover:border-ink/35"
+            >
+              <div>
+                {/* Top row: Preview thumbnails + Actions */}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    {stats.previews.length > 0 ? (
+                      <div className="flex -space-x-2 rtl:space-x-reverse">
+                        {stats.previews.map((src, idx) => (
+                          <div
+                            key={`${cat.id}-p-${idx}`}
+                            className={`h-11 w-11 overflow-hidden rounded-xl border border-card p-1 ${
+                              cat.tint ? TINT_BG[cat.tint] : 'bg-canvas'
+                            }`}
+                          >
+                            <img
+                              src={src}
+                              alt=""
+                              referrerPolicy="no-referrer"
+                              className="h-full w-full object-contain"
                             />
-                            <button
-                              type="button"
-                              onClick={() => handleCommitRename(cat)}
-                              disabled={savingRename}
-                              className="flex h-9 w-9 items-center justify-center rounded-xl bg-ink text-card hover:bg-accent"
-                            >
-                              <Check className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={cancelRename}
-                              disabled={savingRename}
-                              className="flex h-9 w-9 items-center justify-center rounded-xl border border-line bg-canvas text-ink-soft hover:text-ink"
-                            >
-                              <X className="h-4 w-4" />
-                            </button>
                           </div>
-                          {editError && (
-                            <p className="text-[11px] text-danger">{editError}</p>
-                          )}
-                        </div>
-                      ) : (
-                        <div className="flex items-center gap-2.5">
-                          <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-canvas text-ink">
-                            <Tags className="h-4 w-4" />
-                          </span>
-                          <span className="font-medium text-ink">{cat.name}</span>
-                        </div>
-                      )}
-                    </td>
-
-                    <td className="py-4 font-mono text-[12px] text-ink-soft">
-                      /{cat.id}
-                    </td>
-
-                    <td className="py-4">
-                      {cat.builtIn ? (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-canvas px-2.5 py-0.5 text-[11px] font-medium text-ink-soft">
-                          <Lock className="h-3 w-3" />
-                          Core
-                        </span>
-                      ) : (
-                        <span className="inline-flex rounded-full bg-sand px-2.5 py-0.5 text-[11px] font-medium text-ink">
-                          Custom
-                        </span>
-                      )}
-                    </td>
-
-                    <td className="py-4">
-                      <div className="flex items-center gap-2 font-mono text-[12px] tabular">
-                        <span className="font-semibold text-ink">
-                          {counts.live} live
-                        </span>
-                        {counts.draft > 0 && (
-                          <span className="rounded-full bg-warn-soft px-2 py-0.5 text-[10px] text-warn">
-                            +{counts.draft} draft
-                          </span>
-                        )}
+                        ))}
                       </div>
-                    </td>
+                    ) : (
+                      <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-canvas text-ink-soft">
+                        <Tags className="h-5 w-5" />
+                      </div>
+                    )}
+                  </div>
 
-                    <td className="py-4 pr-2 text-right">
-                      <div className="inline-flex items-center gap-1">
-                        <Link
-                          href={`/shop?c=${cat.id}`}
-                          title="View in storefront shop"
-                          className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-soft transition-colors hover:bg-canvas hover:text-ink"
+                  <div className="flex shrink-0 items-center gap-1">
+                    {!cat.builtIn && !isEditing && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => startRename(cat)}
+                          title="Rename category"
+                          className="flex h-9 w-9 items-center justify-center rounded-xl text-ink-soft transition-colors hover:bg-canvas hover:text-ink"
                         >
-                          <ArrowUpRight className="h-4 w-4" />
-                        </Link>
-                        {!cat.builtIn && (
-                          <>
-                            <button
-                              type="button"
-                              onClick={() => startRename(cat)}
-                              title="Rename category"
-                              className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-soft transition-colors hover:bg-canvas hover:text-ink"
-                            >
-                              <Edit3 className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => openDeleteModal(cat)}
-                              title="Delete category"
-                              className="flex h-8 w-8 items-center justify-center rounded-lg text-ink-soft transition-colors hover:bg-danger/10 hover:text-danger"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </>
-                        )}
+                          <Edit3 className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openDeleteModal(cat)}
+                          title="Delete category"
+                          className="flex h-9 w-9 items-center justify-center rounded-xl text-ink-soft transition-colors hover:bg-danger/10 hover:text-danger"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </div>
+
+                {/* Name or Rename Input */}
+                <div className="mt-4">
+                  {isEditing ? (
+                    <div className="space-y-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="text"
+                          value={editName}
+                          autoFocus
+                          onChange={(e) => {
+                            setEditName(e.target.value);
+                            if (editError) setEditError(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleCommitRename(cat);
+                            } else if (e.key === 'Escape') {
+                              cancelRename();
+                            }
+                          }}
+                          disabled={savingRename}
+                          className="h-10 flex-1 rounded-xl border border-ink bg-canvas px-3 text-[13px] text-ink focus:bg-card focus:outline-none"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleCommitRename(cat)}
+                          disabled={savingRename}
+                          className="flex h-10 w-10 items-center justify-center rounded-xl bg-ink text-card hover:bg-accent"
+                        >
+                          <Check className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={cancelRename}
+                          disabled={savingRename}
+                          className="flex h-10 w-10 items-center justify-center rounded-xl border border-line bg-canvas text-ink-soft hover:text-ink"
+                        >
+                          <X className="h-4 w-4" />
+                        </button>
                       </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      {editError && <p className="text-[11px] text-danger">{editError}</p>}
+                    </div>
+                  ) : (
+                    <>
+                      <h3 className="display text-[19px] font-semibold text-ink">
+                        {displayName}
+                      </h3>
+                      <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[12px] text-ink-soft">
+                        <span dir="ltr" className="font-mono">
+                          /{cat.id}
+                        </span>
+                        <span aria-hidden="true">·</span>
+                        <span className="inline-flex items-center gap-1">
+                          {cat.builtIn && <Lock className="h-3 w-3" />}
+                          {cat.builtIn ? d.builtInCore : d.customCollection}
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Footer Counts & Filter Links */}
+              <div className="mt-5 flex items-center justify-between gap-2 border-t border-line pt-3.5">
+                <div className="font-mono text-[12px] text-ink tabular">
+                  <span className="font-semibold">{stats.live}</span> {d.liveLabel}
+                  {stats.draft > 0 && (
+                    <span className="text-ink-faint"> · +{stats.draft} {d.draftLabel}</span>
+                  )}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <Link
+                    href={`/dashboard/products?cat=${cat.id}`}
+                    className="inline-flex h-8 items-center gap-1.5 rounded-full border border-line bg-canvas px-3 text-[11.5px] font-medium text-ink whitespace-nowrap transition-colors hover:border-ink hover:bg-sand"
+                  >
+                    <Package className="h-3 w-3" />
+                    <span>{d.filterInProducts}</span>
+                  </Link>
+                  <Link
+                    href={`/shop?c=${cat.id}`}
+                    title={d.viewInShop}
+                    className="flex h-8 w-8 items-center justify-center rounded-full border border-line bg-canvas text-ink-soft transition-colors hover:border-ink hover:text-ink"
+                  >
+                    <CornerArrow className="h-3.5 w-3.5" />
+                  </Link>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* Delete Category Modal */}

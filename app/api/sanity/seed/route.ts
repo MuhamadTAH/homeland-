@@ -2,6 +2,8 @@ import { NextResponse } from 'next/server';
 import { STARTER_PRODUCTS } from '@/lib/catalog';
 import { writeProductToSanity, getSanityConfig } from '@/lib/sanity';
 
+export const dynamic = 'force-dynamic';
+
 export async function POST() {
   const config = getSanityConfig();
   if (!config.hasToken) {

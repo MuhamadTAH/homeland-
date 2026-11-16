@@ -4,10 +4,13 @@
  */
 import { schemaTypes } from './sanity/schemas';
 
+const rawSanityProjectId = (process.env.NEXT_PUBLIC_SANITY_PROJECT_ID || '').trim();
+const safeProjectId = /^[a-z0-9-]+$/.test(rawSanityProjectId) ? rawSanityProjectId : 'demo';
+
 const sanityConfig = {
   name: 'default',
   title: 'Kvist Architectural Furniture Studio',
-  projectId: process.env.NEXT_PUBLIC_SANITY_PROJECT_ID || 'demo',
+  projectId: safeProjectId,
   dataset: process.env.NEXT_PUBLIC_SANITY_DATASET || 'production',
   schema: {
     types: schemaTypes,
