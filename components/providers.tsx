@@ -78,10 +78,26 @@ export function ShowroomProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
 
-  // Automatically sync products and room scene from Sanity CMS when configured
+  // Automatically sync products and room scene from Sanity CMS when configured (on load + tab refocus)
   useEffect(() => {
-    demoBackend.syncFromSanity().catch(() => {});
-    demoBackend.syncRoomSceneFromSanity().catch(() => {});
+    let lastSyncAt = 0;
+    const runSync = () => {
+      const now = Date.now();
+      if (now - lastSyncAt < 8000) return;
+      lastSyncAt = now;
+      demoBackend.syncFromSanity().catch(() => {});
+      demoBackend.syncRoomSceneFromSanity().catch(() => {});
+    };
+    runSync();
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') runSync();
+    };
+    window.addEventListener('focus', runSync);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => {
+      window.removeEventListener('focus', runSync);
+      document.removeEventListener('visibilitychange', onVisibility);
+    };
   }, []);
 
   const openShowroom = useCallback(

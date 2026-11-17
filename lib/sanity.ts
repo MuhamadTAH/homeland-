@@ -9,11 +9,13 @@ import {
   TintKey,
 } from './catalog';
 
+const DEFAULT_SANITY_PROJECT_ID = 'yx4kz08m';
+
 // Sanity Environment Configuration
 const rawProjectId = (
   process.env.NEXT_PUBLIC_SANITY_PROJECT_ID ||
   process.env.SANITY_PROJECT_ID ||
-  ''
+  DEFAULT_SANITY_PROJECT_ID
 ).trim();
 
 const isValidSanityProjectId = (id: string) => /^[a-z0-9-]+$/.test(id);
@@ -43,12 +45,13 @@ export function getSanityConfig() {
   };
 }
 
-// Client for Read Operations (CDN cached when token not required)
+// Client for Read Operations (useCdn: false ensures newly published Sanity products appear immediately)
 export const sanityClient = createClient({
-  projectId: projectId || 'demo',
+  projectId: projectId || DEFAULT_SANITY_PROJECT_ID,
   dataset: dataset || 'production',
   apiVersion,
-  useCdn: true,
+  useCdn: false,
+  perspective: 'published',
 });
 
 // Client with Write Token for Server Mutations (create, update, delete)
@@ -96,7 +99,9 @@ export interface SanityProductDocument {
   description?: string;
   tint?: string;
   image?: any;
+  imageUrl?: string;
   scene?: any;
+  sceneUrl?: string;
   dimensions?: string;
   care?: string;
   status?: 'active' | 'draft';
@@ -126,14 +131,14 @@ const LEGACY_CATEGORY_MAP: Record<string, string> = {
 };
 
 // Convert Sanity Product Document into App Product
-export function sanityDocToProduct(doc: SanityProductDocument): Product {
+export function sanityDocToProduct(doc: SanityProductDocument, orderIndex = 0): Product {
   const id = doc.slug?.current || doc._id.replace(/^product\./, '').replace(/^drafts\./, '');
   const name = doc.name || doc.title || 'Untitled Piece';
 
   // Category resolving (either string or referenced object)
   let rawCategory = 'seating';
-  if (typeof doc.category === 'string') {
-    rawCategory = doc.category;
+  if (typeof doc.category === 'string' && doc.category.trim()) {
+    rawCategory = doc.category.trim();
   } else if (doc.category && typeof doc.category === 'object') {
     rawCategory = doc.category.slug?.current || doc.category.name || doc.category.title || 'seating';
   }
@@ -141,70 +146,89 @@ export function sanityDocToProduct(doc: SanityProductDocument): Product {
 
   // Finishes
   const finishes = Array.isArray(doc.finishes) && doc.finishes.length > 0
-    ? doc.finishes.map((f) => ({
-        name: f.name || 'Standard',
-        color: f.color || '#d8c4a4',
-        ...(typeof f.soldOut === 'boolean' ? { soldOut: f.soldOut } : {}),
-        ...(typeof f.stock === 'number' ? { stock: f.stock } : {}),
-      }))
+    ? doc.finishes
+        .filter(Boolean)
+        .map((f) => ({
+          name: f.name || 'Standard',
+          color: f.color || '#d8c4a4',
+          ...(typeof f.soldOut === 'boolean' ? { soldOut: f.soldOut } : {}),
+          ...(typeof f.stock === 'number' ? { stock: f.stock } : {}),
+        }))
     : [{ name: 'Natural Oak', color: '#d8c4a4' }];
 
-  // Image resolving (Sanity asset reference, string URL, or default)
-  let imageUrl = '/images/chair.webp';
-  if (typeof doc.image === 'string' && doc.image.trim()) {
-    imageUrl = doc.image;
-  } else if (doc.image?.asset) {
-    imageUrl = urlForSanityImage(doc.image);
-  }
+  const resolvedFrames360 = Array.isArray(doc.frames360)
+    ? doc.frames360
+        .map((item) =>
+          typeof item === 'string'
+            ? item
+            : typeof item?.url === 'string' && item.url.trim()
+            ? item.url
+            : item?.asset
+            ? urlForSanityImage(item)
+            : ''
+        )
+        .filter(Boolean)
+    : [];
 
   let sceneUrl: string | null = null;
-  if (typeof doc.scene === 'string' && doc.scene.trim()) {
+  if (typeof doc.sceneUrl === 'string' && doc.sceneUrl.trim()) {
+    sceneUrl = doc.sceneUrl;
+  } else if (typeof doc.scene === 'string' && doc.scene.trim()) {
     sceneUrl = doc.scene;
   } else if (doc.scene?.asset) {
     sceneUrl = urlForSanityImage(doc.scene);
   }
 
+  // Image resolving (direct GROQ asset->url, Sanity asset reference, string URL, 360 frame fallback, scene fallback, or default)
+  let imageUrl = '';
+  if (typeof doc.imageUrl === 'string' && doc.imageUrl.trim()) {
+    imageUrl = doc.imageUrl;
+  } else if (typeof doc.image === 'string' && doc.image.trim()) {
+    imageUrl = doc.image;
+  } else if (doc.image?.asset) {
+    imageUrl = urlForSanityImage(doc.image);
+  }
+  if (!imageUrl) {
+    imageUrl = resolvedFrames360[0] || sceneUrl || '/images/chair.webp';
+  }
+
   const validTints: TintKey[] = ['sage', 'butter', 'sand', 'blush', 'sky', 'stone'];
   const tint: TintKey = validTints.includes(doc.tint as TintKey) ? (doc.tint as TintKey) : 'stone';
+
+  const parsedPrice = Number(doc.price);
+  const price = Number.isFinite(parsedPrice) && parsedPrice > 0 ? parsedPrice : 450;
+
+  const parsedStock = Number(doc.stock);
+  const stock = Number.isFinite(parsedStock) && parsedStock >= 0 ? parsedStock : 8;
 
   return {
     id,
     name,
     category,
-    price: typeof doc.price === 'number' ? doc.price : 450,
+    price,
     rating: 5,
     reviews: 14,
     tint,
     image: imageUrl,
     scene: sceneUrl,
-    stock: typeof doc.stock === 'number' ? doc.stock : 8,
+    stock,
     badge: doc.badge || null,
     blurb: doc.blurb || doc.description || '',
     finishes,
-    details: Array.isArray(doc.details) ? doc.details : [],
+    details: Array.isArray(doc.details) ? doc.details.filter(Boolean) : [],
     dimensions: doc.dimensions || '80 × 80 × 75 cm',
     care: doc.care || 'Wipe with a soft damp cloth. Condition timber annually.',
     status: doc.status === 'draft' ? 'draft' : 'active',
-    position: typeof doc.position === 'number' ? doc.position : 99,
+    position: typeof doc.position === 'number' ? doc.position : orderIndex,
     updatedAt: doc._updatedAt ? new Date(doc._updatedAt).getTime() : Date.now(),
     view360Type: (doc.view360Type as Product['view360Type']) || 'auto',
-    frames360: Array.isArray(doc.frames360)
-      ? doc.frames360
-          .map((item) =>
-            typeof item === 'string'
-              ? item
-              : item?.asset
-              ? urlForSanityImage(item)
-              : ''
-          )
-          .filter(Boolean)
-      : undefined,
+    frames360: resolvedFrames360.length > 0 ? resolvedFrames360 : undefined,
     material: doc.material || undefined,
     weight: (doc as any).weight || undefined,
     warranty: doc.warranty || undefined,
     leadTime: doc.leadTime || undefined,
     customSpecs: Array.isArray(doc.specifications)
-      ? doc.specifications.map((s) => ({ label: s.label, value: s.value }))
+      ? doc.specifications.filter(Boolean).map((s) => ({ label: s.label, value: s.value }))
       : undefined,
   };
 }
@@ -254,8 +278,8 @@ export function productToSanityDoc(product: Product): SanityProductDocument {
   };
 }
 
-// GROQ Queries
-const ALL_PRODUCTS_QUERY = `*[_type == "product"] | order(position asc, _createdAt desc) {
+// GROQ Queries (exclude unpublished drafts, resolve image asset URLs directly)
+const ALL_PRODUCTS_QUERY = `*[_type == "product" && !(_id in path("drafts.**"))] | order(position asc, _createdAt desc) {
   _id,
   _type,
   _createdAt,
@@ -271,7 +295,9 @@ const ALL_PRODUCTS_QUERY = `*[_type == "product"] | order(position asc, _created
   description,
   tint,
   image,
+  "imageUrl": image.asset->url,
   scene,
+  "sceneUrl": scene.asset->url,
   dimensions,
   care,
   status,
@@ -279,7 +305,7 @@ const ALL_PRODUCTS_QUERY = `*[_type == "product"] | order(position asc, _created
   finishes,
   details,
   view360Type,
-  frames360,
+  "frames360": frames360[]{ _key, _type, asset, "url": asset->url },
   material,
   weight,
   warranty,
@@ -287,9 +313,10 @@ const ALL_PRODUCTS_QUERY = `*[_type == "product"] | order(position asc, _created
   specifications
 }`;
 
-const ALL_CATEGORIES_QUERY = `*[_type == "category"] | order(position asc, _createdAt asc) {
+const ALL_CATEGORIES_QUERY = `*[_type == "category" && !(_id in path("drafts.**"))] | order(position asc, _createdAt asc) {
   _id,
   _type,
+  _updatedAt,
   name,
   title,
   slug,
@@ -302,13 +329,53 @@ export async function fetchSanityProducts(): Promise<Product[]> {
     return [];
   }
   try {
-    const rawDocs = await sanityClient.fetch<SanityProductDocument[]>(ALL_PRODUCTS_QUERY);
+    const rawDocs = await sanityClient.fetch<SanityProductDocument[]>(
+      ALL_PRODUCTS_QUERY,
+      {},
+      { cache: 'no-store' }
+    );
     if (!Array.isArray(rawDocs) || rawDocs.length === 0) {
       return [];
     }
-    return rawDocs.map(sanityDocToProduct);
+    return rawDocs.map((doc, idx) => sanityDocToProduct(doc, idx));
   } catch (error) {
     console.warn('Failed to fetch products from Sanity:', error);
+    return [];
+  }
+}
+
+// Fetch custom categories from Sanity
+export async function fetchSanityCategories(): Promise<Category[]> {
+  if (!isSanityConfigured()) {
+    return [];
+  }
+  try {
+    const rows = await sanityClient.fetch<any[]>(
+      ALL_CATEGORIES_QUERY,
+      {},
+      { cache: 'no-store' }
+    );
+    if (!Array.isArray(rows) || rows.length === 0) {
+      return [];
+    }
+    return rows
+      .filter((r) => Boolean(r?.name || r?.title))
+      .map((r, idx) => {
+        const name = (r.name || r.title || '').trim();
+        const id =
+          r.slug?.current ||
+          r._id.replace(/^category\./, '').replace(/^drafts\./, '') ||
+          `cat-${idx}`;
+        return {
+          id,
+          name,
+          builtIn: false,
+          position: typeof r.position === 'number' ? r.position : idx + 1,
+          updatedAt: r._updatedAt ? new Date(r._updatedAt).getTime() : Date.now(),
+        };
+      });
+  } catch (error) {
+    console.warn('Failed to fetch categories from Sanity:', error);
     return [];
   }
 }
@@ -509,13 +576,17 @@ export async function testSanityConnection(): Promise<{
   }
 
   try {
-    const count = await sanityClient.fetch<number>(`count(*[_type == "product"])`);
+    const count = await sanityClient.fetch<number>(
+      `count(*[_type == "product" && !(_id in path("drafts.**"))])`,
+      {},
+      { cache: 'no-store' }
+    );
     return {
       connected: true,
       productCount: count || 0,
       projectId,
       dataset,
-      message: `Successfully connected to Sanity project "${projectId}" (${count} products found).`,
+      message: `Successfully connected to Sanity project "${projectId}" (${count} published products found).`,
     };
   } catch (err: any) {
     return {
@@ -535,6 +606,7 @@ export interface SanityRoomSceneDocument {
   title?: string;
   eyebrow?: string;
   image?: any;
+  imageUrl?: string;
   hotspots?: Array<{
     _key?: string;
     product?: { _ref?: string; slug?: { current: string } };
@@ -544,13 +616,14 @@ export interface SanityRoomSceneDocument {
   }>;
 }
 
-const ROOM_SCENE_QUERY = `*[_type == "roomScene"] | order(_updatedAt desc)[0] {
+const ROOM_SCENE_QUERY = `*[_type == "roomScene" && !(_id in path("drafts.**"))] | order(_updatedAt desc)[0] {
   _id,
   _type,
   _updatedAt,
   title,
   eyebrow,
   image,
+  "imageUrl": image.asset->url,
   hotspots[] {
     _key,
     productId,
@@ -562,7 +635,9 @@ const ROOM_SCENE_QUERY = `*[_type == "roomScene"] | order(_updatedAt desc)[0] {
 
 export function sanityDocToRoomScene(doc: SanityRoomSceneDocument): RoomScene {
   let imageUrl = '/images/interior.jpg';
-  if (typeof doc.image === 'string' && doc.image.trim()) {
+  if (typeof doc.imageUrl === 'string' && doc.imageUrl.trim()) {
+    imageUrl = doc.imageUrl;
+  } else if (typeof doc.image === 'string' && doc.image.trim()) {
     imageUrl = doc.image;
   } else if (doc.image?.asset) {
     imageUrl = urlForSanityImage(doc.image);
@@ -611,7 +686,11 @@ export function roomSceneToSanityDoc(scene: RoomScene): SanityRoomSceneDocument 
 export async function fetchSanityRoomScene(): Promise<RoomScene | null> {
   if (!isSanityConfigured()) return null;
   try {
-    const doc = await sanityClient.fetch<SanityRoomSceneDocument | null>(ROOM_SCENE_QUERY);
+    const doc = await sanityClient.fetch<SanityRoomSceneDocument | null>(
+      ROOM_SCENE_QUERY,
+      {},
+      { cache: 'no-store' }
+    );
     if (!doc) return null;
     return sanityDocToRoomScene(doc);
   } catch (error) {

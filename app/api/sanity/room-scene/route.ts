@@ -8,25 +8,32 @@ import {
 import { RoomScene } from '@/lib/catalog';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export async function GET() {
   if (!isSanityConfigured()) {
-    return NextResponse.json({
-      configured: false,
-      roomScene: null,
-    });
+    return NextResponse.json(
+      {
+        configured: false,
+        roomScene: null,
+      },
+      { headers: { 'Cache-Control': 'no-store, max-age=0' } }
+    );
   }
 
   try {
     const roomScene = await fetchSanityRoomScene();
-    return NextResponse.json({
-      configured: true,
-      roomScene,
-    });
+    return NextResponse.json(
+      {
+        configured: true,
+        roomScene,
+      },
+      { headers: { 'Cache-Control': 'no-store, max-age=0' } }
+    );
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || 'Failed to fetch room scene from Sanity' },
-      { status: 500 }
+      { status: 500, headers: { 'Cache-Control': 'no-store, max-age=0' } }
     );
   }
 }

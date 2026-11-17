@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import {
   fetchSanityProducts,
+  fetchSanityCategories,
   writeProductToSanity,
   deleteProductFromSanity,
   isSanityConfigured,
@@ -9,28 +10,40 @@ import {
 import { Product } from '@/lib/catalog';
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
-// GET: Fetch products from Sanity
+// GET: Fetch products & custom categories from Sanity
 export async function GET() {
   if (!isSanityConfigured()) {
-    return NextResponse.json({
-      configured: false,
-      products: [],
-      message: 'NEXT_PUBLIC_SANITY_PROJECT_ID not configured.',
-    });
+    return NextResponse.json(
+      {
+        configured: false,
+        products: [],
+        categories: [],
+        message: 'NEXT_PUBLIC_SANITY_PROJECT_ID not configured.',
+      },
+      { headers: { 'Cache-Control': 'no-store, max-age=0' } }
+    );
   }
 
   try {
-    const products = await fetchSanityProducts();
-    return NextResponse.json({
-      configured: true,
-      products,
-      count: products.length,
-    });
+    const [products, categories] = await Promise.all([
+      fetchSanityProducts(),
+      fetchSanityCategories(),
+    ]);
+    return NextResponse.json(
+      {
+        configured: true,
+        products,
+        categories,
+        count: products.length,
+      },
+      { headers: { 'Cache-Control': 'no-store, max-age=0' } }
+    );
   } catch (error: any) {
     return NextResponse.json(
       { error: error.message || 'Failed to fetch products from Sanity' },
-      { status: 500 }
+      { status: 500, headers: { 'Cache-Control': 'no-store, max-age=0' } }
     );
   }
 }

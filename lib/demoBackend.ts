@@ -395,9 +395,19 @@ export const demoBackend = {
 
   async syncFromSanity(): Promise<{ count: number; source: 'sanity' | 'local' }> {
     try {
-      const res = await fetch('/api/sanity/products');
+      const res = await fetch('/api/sanity/products', { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
+        if (data.configured && Array.isArray(data.categories)) {
+          const customSanityCats = data.categories.filter(
+            (c: Category) => c?.id && !BUILTIN_CATEGORY_IDS.includes(c.id)
+          );
+          if (customSanityCats.length > 0) {
+            writeJson(KEYS.categories, customSanityCats);
+            notifyCategories();
+            channel?.postMessage('categories');
+          }
+        }
         if (data.configured && Array.isArray(data.products) && data.products.length > 0) {
           saveProducts(data.products);
           return { count: data.products.length, source: 'sanity' };
@@ -553,7 +563,7 @@ export const demoBackend = {
 
   async syncRoomSceneFromSanity(): Promise<RoomScene | null> {
     try {
-      const res = await fetch('/api/sanity/room-scene');
+      const res = await fetch('/api/sanity/room-scene', { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         if (data.configured && data.roomScene) {
