@@ -413,6 +413,8 @@ interface Frame360Item {
 
 interface ProductRow {
   _id: string;
+  _rawId?: string;
+  isSanityDraft?: boolean;
   name: string;
   slug?: { current?: string };
   category: string;
@@ -616,6 +618,9 @@ const I18N = {
     toastHotspotAdded: '\u062E\u0627\u06B5 \u062F\u0627\u0646\u062F\u0631\u0627',
     toastHotspotRemoved: '\u062E\u0627\u06B5 \u0644\u0627\u0628\u0631\u0627',
     toastRoomUploaded: '\u0648\u06CE\u0646\u06D5\u06CC \u0698\u0648\u0648\u0631 \u0646\u0648\u06CE\u06A9\u0631\u0627\u06CC\u06D5\u0648\u06D5',
+    unpublishedBadge: '\u0695\u06D5\u0634\u0646\u0648\u0648\u0633\u06CC Sanity \u00B7 \u0628\u06B5\u0627\u0648\u0646\u06D5\u06A9\u0631\u0627\u0648\u06D5',
+    publishNowBtn: '\u0628\u06B5\u0627\u0648\u06A9\u0631\u062F\u0646\u06D5\u0648\u06D5\u06CC \u0626\u06CE\u0633\u062A\u0627',
+    publishedUnit: '\u0628\u06B5\u0627\u0648\u06A9\u0631\u0627\u0648',
     mediaModalTitle: '\u0647\u06D5\u06B5\u0628\u0698\u0627\u0631\u062F\u0646 \u0644\u06D5 \u06A9\u062A\u06CE\u0628\u062E\u0627\u0646\u06D5\u06CC Sanity',
     mediaModalEmpty: '\u0647\u06CC\u0686 \u0648\u06CE\u0646\u06D5\u06CC\u06D5\u06A9 \u0646\u06D5\u062F\u06C6\u0632\u0631\u0627\u06CC\u06D5\u0648\u06D5.',
     cats: {
@@ -803,6 +808,9 @@ const I18N = {
     toastHotspotAdded: 'Pin placed',
     toastHotspotRemoved: 'Pin removed',
     toastRoomUploaded: 'Room photo updated',
+    unpublishedBadge: 'Unpublished Draft',
+    publishNowBtn: 'Publish Now',
+    publishedUnit: 'published',
     mediaModalTitle: 'Pick from Sanity Media Library',
     mediaModalEmpty: 'No uploaded photos found yet.',
     cats: {
@@ -995,12 +1003,28 @@ function createWorkspaceComponent(workspaceLang: Lang) {
             }`
           ),
         ]);
-        setProducts(Array.isArray(prods) ? prods : []);
+        const rawList = Array.isArray(prods) ? prods : [];
+        const byCleanId = new Map<string, ProductRow>();
+        rawList.forEach((row) => {
+          const isDraftDoc = row._id.startsWith('drafts.');
+          const cleanId = row._id.replace(/^drafts\./, '');
+          const prev = byCleanId.get(cleanId);
+          if (!prev || isDraftDoc) {
+            byCleanId.set(cleanId, {
+              ...row,
+              _id: cleanId,
+              _rawId: row._id,
+              isSanityDraft: isDraftDoc,
+            });
+          }
+        });
+        const merged = Array.from(byCleanId.values());
+        setProducts(merged);
         setCategories(Array.isArray(cats) ? cats : []);
         setTeam(Array.isArray(members) ? members : []);
         setRoomScene(scene || null);
-        if (Array.isArray(prods) && prods.length > 0 && !spotProductId) {
-          setSpotProductId(prods[0].slug?.current || prods[0]._id);
+        if (merged.length > 0 && !spotProductId) {
+          setSpotProductId(merged[0].slug?.current || merged[0]._id);
         }
       } catch (err: any) {
         showToast(err?.message || 'Error');
@@ -1061,12 +1085,16 @@ function createWorkspaceComponent(workspaceLang: Lang) {
     const stats = useMemo(() => {
       const live = products.filter((p) => p.status !== 'draft').length;
       const drafts = products.filter((p) => p.status === 'draft').length;
+      const sanityDrafts = products.filter((p) => p.isSanityDraft).length;
+      const sanityPublished = products.length - sanityDrafts;
       const lowStock = products.filter((p) => (p.stock ?? 0) <= 3).length;
       const totalStock = products.reduce((sum, p) => sum + (Number(p.stock) || 0), 0);
       return {
         total: products.length,
         live,
         drafts,
+        sanityDrafts,
+        sanityPublished,
         lowStock,
         totalStock,
         collections: categoryOptions.length,
@@ -1249,8 +1277,14 @@ function createWorkspaceComponent(workspaceLang: Lang) {
       }
       setSaving(true);
       try {
-        const slugVal = draft.slug.trim() || slugify(draft.name);
-        const docId = draft._id || `product.${slugVal}`;
+        const rawSlug = draft.slug.trim() || slugify(draft.name);
+        const slugVal =
+          rawSlug
+            .toLowerCase()
+            .replace(/[^a-z0-9-_]+/g, '-')
+            .replace(/^-+|-+$/g, '') || `piece-${Date.now().toString(36)}`;
+        const cleanExistingId = draft._id ? draft._id.replace(/^drafts\./, '') : '';
+        const docId = cleanExistingId || `product.${slugVal}`;
         const doc: any = {
           _id: docId,
           _type: 'product',
@@ -1296,8 +1330,29 @@ function createWorkspaceComponent(workspaceLang: Lang) {
         }
 
         await client.createOrReplace(doc);
+        await client.delete(`drafts.${docId}`).catch(() => {});
         setDrawerOpen(false);
-        showToast(draft._id ? copy.toastUpdated : copy.toastCreated);
+        showToast(cleanExistingId ? copy.toastUpdated : copy.toastCreated);
+        await loadAll();
+      } catch (err: any) {
+        showToast(err?.message || 'Error');
+      } finally {
+        setSaving(false);
+      }
+    };
+
+    const handlePublishDraftRow = async (p: ProductRow) => {
+      setSaving(true);
+      try {
+        const cleanId = p._id.replace(/^drafts\./, '');
+        const rawDoc = await client.fetch<any>(`*[_id == $draftId][0]`, {
+          draftId: p._rawId || `drafts.${cleanId}`,
+        });
+        if (!rawDoc) return;
+        const { _rev, _createdAt, _updatedAt, ...rest } = rawDoc;
+        await client.createOrReplace({ ...rest, _id: cleanId });
+        await client.delete(`drafts.${cleanId}`).catch(() => {});
+        showToast(copy.toastCreated);
         await loadAll();
       } catch (err: any) {
         showToast(err?.message || 'Error');
@@ -1312,7 +1367,7 @@ function createWorkspaceComponent(workspaceLang: Lang) {
         prev.map((item) => (item._id === p._id ? { ...item, stock: nextStock } : item))
       );
       try {
-        await client.patch(p._id).set({ stock: nextStock }).commit();
+        await client.patch(p._rawId || p._id).set({ stock: nextStock }).commit();
         showToast(`${p.name}: ${nextStock}`);
       } catch {
         await loadAll();
@@ -1325,7 +1380,7 @@ function createWorkspaceComponent(workspaceLang: Lang) {
         prev.map((item) => (item._id === p._id ? { ...item, status: nextStatus } : item))
       );
       try {
-        await client.patch(p._id).set({ status: nextStatus }).commit();
+        await client.patch(p._rawId || p._id).set({ status: nextStatus }).commit();
         showToast(`${p.name}: ${nextStatus === 'draft' ? copy.draftLabel : copy.liveLabel}`);
       } catch {
         await loadAll();
@@ -1335,7 +1390,11 @@ function createWorkspaceComponent(workspaceLang: Lang) {
     const handleDeleteProduct = async (p: ProductRow) => {
       setSaving(true);
       try {
-        await client.delete(p._id);
+        const cleanId = p._id.replace(/^drafts\./, '');
+        await Promise.allSettled([
+          client.delete(cleanId),
+          client.delete(`drafts.${cleanId}`),
+        ]);
         setDrawerOpen(false);
         setConfirmDeleteId(null);
         showToast(`${copy.toastDeleted} ${p.name}`);
@@ -1626,8 +1685,14 @@ function createWorkspaceComponent(workspaceLang: Lang) {
               </button>
             </div>
             <div style={{ marginTop: 6, fontSize: 11, color: COLORS.inkSoft }}>
-              {stats.total} {copy.pcsUnit} {'\u00B7'} yx4kz08m
+              {stats.sanityPublished} {copy.publishedUnit} {'\u00B7'}{' '}
+              {client.config().projectId || 'yx4kz08m'}/{client.config().dataset || 'production'}
             </div>
+            {stats.sanityDrafts > 0 && (
+              <div style={{ marginTop: 4, fontSize: 11, color: COLORS.warn, fontWeight: 600 }}>
+                {stats.sanityDrafts} {copy.unpublishedBadge}
+              </div>
+            )}
             {currentUser && (
               <div style={{ marginTop: 4, fontSize: 11, color: COLORS.inkFaint }}>
                 {copy.signedIn}: {currentUser.name}
@@ -2337,6 +2402,25 @@ function createWorkspaceComponent(workspaceLang: Lang) {
                                 +
                               </button>
                             </div>
+
+                            {p.isSanityDraft && (
+                              <button
+                                type="button"
+                                onClick={() => handlePublishDraftRow(p)}
+                                style={{
+                                  border: 'none',
+                                  borderRadius: 8,
+                                  padding: '6px 10px',
+                                  fontSize: 11,
+                                  fontWeight: 600,
+                                  cursor: 'pointer',
+                                  background: COLORS.accentSoft,
+                                  color: COLORS.accent,
+                                }}
+                              >
+                                {copy.publishNowBtn}
+                              </button>
+                            )}
 
                             <button
                               type="button"
