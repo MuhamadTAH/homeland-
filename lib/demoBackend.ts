@@ -344,13 +344,17 @@ export const demoBackend = {
 
     // Sync to Sanity platform via API route if configured
     try {
-      fetch('/api/sanity/products', {
+      const res = await fetch('/api/sanity/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ product }),
-      }).catch(() => {});
-    } catch {
-      // non-fatal
+      });
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        console.warn('Sanity product sync warning:', errJson);
+      }
+    } catch (e) {
+      console.warn('Failed to sync product to Sanity:', e);
     }
   },
 
@@ -367,13 +371,17 @@ export const demoBackend = {
     const target = updated.find((p) => p.id === id);
     if (target) {
       try {
-        fetch('/api/sanity/products', {
+        const res = await fetch('/api/sanity/products', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ product: target }),
-        }).catch(() => {});
-      } catch {
-        // non-fatal
+        });
+        if (!res.ok) {
+          const errJson = await res.json().catch(() => ({}));
+          console.warn('Sanity product update warning:', errJson);
+        }
+      } catch (e) {
+        console.warn('Failed to sync product update to Sanity:', e);
       }
     }
   },
@@ -385,11 +393,15 @@ export const demoBackend = {
 
     // Delete in Sanity platform via API route if configured
     try {
-      fetch(`/api/sanity/products?id=${encodeURIComponent(id)}`, {
+      const res = await fetch(`/api/sanity/products?id=${encodeURIComponent(id)}`, {
         method: 'DELETE',
-      }).catch(() => {});
-    } catch {
-      // non-fatal
+      });
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        console.warn('Sanity product delete warning:', errJson);
+      }
+    } catch (e) {
+      console.warn('Failed to delete product from Sanity:', e);
     }
   },
 

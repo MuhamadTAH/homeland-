@@ -50,8 +50,9 @@ export const sanityClient = createClient({
   projectId: projectId || DEFAULT_SANITY_PROJECT_ID,
   dataset: dataset || 'production',
   apiVersion,
+  token: token || undefined,
   useCdn: false,
-  perspective: 'published',
+  perspective: token ? 'previewDrafts' : 'published',
 });
 
 // Client with Write Token for Server Mutations (create, update, delete)
@@ -278,8 +279,8 @@ export function productToSanityDoc(product: Product): SanityProductDocument {
   };
 }
 
-// GROQ Queries (exclude unpublished drafts, resolve image asset URLs directly)
-const ALL_PRODUCTS_QUERY = `*[_type == "product" && !(_id in path("drafts.**"))] | order(position asc, _createdAt desc) {
+// GROQ Queries (resolve image asset URLs directly)
+const ALL_PRODUCTS_QUERY = `*[_type == "product"] | order(position asc, _createdAt desc) {
   _id,
   _type,
   _createdAt,
@@ -313,7 +314,7 @@ const ALL_PRODUCTS_QUERY = `*[_type == "product" && !(_id in path("drafts.**"))]
   specifications
 }`;
 
-const ALL_CATEGORIES_QUERY = `*[_type == "category" && !(_id in path("drafts.**"))] | order(position asc, _createdAt asc) {
+const ALL_CATEGORIES_QUERY = `*[_type == "category"] | order(position asc, _createdAt asc) {
   _id,
   _type,
   _updatedAt,
@@ -323,13 +324,14 @@ const ALL_CATEGORIES_QUERY = `*[_type == "category" && !(_id in path("drafts.**"
   position
 }`;
 
-// Fetch products from Sanity
+// Fetch products from Sanity (supports both published and drafts, deduplicating by clean ID)
 export async function fetchSanityProducts(): Promise<Product[]> {
   if (!isSanityConfigured()) {
     return [];
   }
   try {
-    const rawDocs = await sanityClient.fetch<SanityProductDocument[]>(
+    const client = token ? getSanityWriteClient() : sanityClient;
+    const rawDocs = await client.fetch<SanityProductDocument[]>(
       ALL_PRODUCTS_QUERY,
       {},
       { cache: 'no-store' }
@@ -337,7 +339,16 @@ export async function fetchSanityProducts(): Promise<Product[]> {
     if (!Array.isArray(rawDocs) || rawDocs.length === 0) {
       return [];
     }
-    return rawDocs.map((doc, idx) => sanityDocToProduct(doc, idx));
+    const byCleanId = new Map<string, SanityProductDocument>();
+    for (const doc of rawDocs) {
+      const cleanId = (doc._id || '').replace(/^drafts\./, '');
+      const isDraft = (doc._id || '').startsWith('drafts.');
+      const prev = byCleanId.get(cleanId);
+      if (!prev || (prev._id.startsWith('drafts.') && !isDraft)) {
+        byCleanId.set(cleanId, doc);
+      }
+    }
+    return Array.from(byCleanId.values()).map((doc, idx) => sanityDocToProduct(doc, idx));
   } catch (error) {
     console.warn('Failed to fetch products from Sanity:', error);
     return [];
@@ -350,7 +361,8 @@ export async function fetchSanityCategories(): Promise<Category[]> {
     return [];
   }
   try {
-    const rows = await sanityClient.fetch<any[]>(
+    const client = token ? getSanityWriteClient() : sanityClient;
+    const rows = await client.fetch<any[]>(
       ALL_CATEGORIES_QUERY,
       {},
       { cache: 'no-store' }
@@ -358,7 +370,16 @@ export async function fetchSanityCategories(): Promise<Category[]> {
     if (!Array.isArray(rows) || rows.length === 0) {
       return [];
     }
-    return rows
+    const byCleanId = new Map<string, any>();
+    for (const doc of rows) {
+      const cleanId = (doc._id || '').replace(/^drafts\./, '');
+      const isDraft = (doc._id || '').startsWith('drafts.');
+      const prev = byCleanId.get(cleanId);
+      if (!prev || (prev._id?.startsWith('drafts.') && !isDraft)) {
+        byCleanId.set(cleanId, doc);
+      }
+    }
+    return Array.from(byCleanId.values())
       .filter((r) => Boolean(r?.name || r?.title))
       .map((r, idx) => {
         const name = (r.name || r.title || '').trim();
@@ -576,8 +597,9 @@ export async function testSanityConnection(): Promise<{
   }
 
   try {
-    const count = await sanityClient.fetch<number>(
-      `count(*[_type == "product" && !(_id in path("drafts.**"))])`,
+    const client = token ? getSanityWriteClient() : sanityClient;
+    const count = await client.fetch<number>(
+      `count(*[_type == "product"])`,
       {},
       { cache: 'no-store' }
     );
@@ -586,7 +608,7 @@ export async function testSanityConnection(): Promise<{
       productCount: count || 0,
       projectId,
       dataset,
-      message: `Successfully connected to Sanity project "${projectId}" (${count} published products found).`,
+      message: `Successfully connected to Sanity project "${projectId}" (${count || 0} products found).`,
     };
   } catch (err: any) {
     return {
@@ -686,7 +708,8 @@ export function roomSceneToSanityDoc(scene: RoomScene): SanityRoomSceneDocument 
 export async function fetchSanityRoomScene(): Promise<RoomScene | null> {
   if (!isSanityConfigured()) return null;
   try {
-    const doc = await sanityClient.fetch<SanityRoomSceneDocument | null>(
+    const client = token ? getSanityWriteClient() : sanityClient;
+    const doc = await client.fetch<SanityRoomSceneDocument | null>(
       ROOM_SCENE_QUERY,
       {},
       { cache: 'no-store' }
