@@ -1,9 +1,9 @@
 @import "tailwindcss";
 
 @theme {
-  --font-sans: "Geist", "IBM Plex Sans Arabic", "Vazirmatn", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "Geist Mono", "IBM Plex Sans Arabic", "Vazirmatn", ui-monospace, monospace;
-  --font-display: "Bricolage Grotesque", "Readex Pro", "IBM Plex Sans Arabic", "Vazirmatn", ui-sans-serif, sans-serif;
+  --font-sans: "Geist", "Almarai", "Readex Pro", "IBM Plex Sans Arabic", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono", "Almarai", "Readex Pro", "IBM Plex Sans Arabic", ui-monospace, monospace;
+  --font-display: "Bricolage Grotesque", "Almarai", "Readex Pro", "IBM Plex Sans Arabic", ui-sans-serif, sans-serif;
 
   --color-canvas: #f2efe9;
   --color-card: #fbfaf7;
@@ -50,8 +50,16 @@ body {
 
 /* Calibrated RTL Typography for Kurdish Sorani (ckb) & Arabic (ar) */
 html[dir="rtl"],
-html[dir="rtl"] body {
-  font-family: "IBM Plex Sans Arabic", "Vazirmatn", sans-serif;
+html[dir="rtl"] body,
+html[dir="rtl"] .display,
+html[dir="rtl"] h1,
+html[dir="rtl"] h2,
+html[dir="rtl"] h3,
+html[dir="rtl"] h4,
+html[dir="rtl"] button,
+html[dir="rtl"] input,
+html[dir="rtl"] textarea {
+  font-family: "Almarai", "Readex Pro", "IBM Plex Sans Arabic", sans-serif;
   line-height: 1.65;
 }
 

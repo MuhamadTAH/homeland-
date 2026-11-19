@@ -1559,12 +1559,18 @@ function createWorkspaceComponent(workspaceLang: Lang) {
           background: COLORS.canvas,
           color: COLORS.ink,
           fontFamily: isRtl
-            ? "'Vazirmatn', 'Noto Sans Arabic', Tahoma, sans-serif"
+            ? "'Almarai', 'Readex Pro', 'Noto Sans Arabic', sans-serif"
             : 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
           display: 'grid',
           gridTemplateColumns: '236px minmax(0, 1fr)',
         }}
       >
+        <style>{`
+          @import url('https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&family=Readex+Pro:wght@400;500;600;700&display=swap');
+          [dir="rtl"], [dir="rtl"] input, [dir="rtl"] textarea, [dir="rtl"] button, [dir="rtl"] select, [dir="rtl"] h1, [dir="rtl"] h2, [dir="rtl"] h3 {
+            font-family: 'Almarai', 'Readex Pro', 'Noto Sans Arabic', sans-serif !important;
+          }
+        `}</style>
         {/* Left Navigation */}
         <aside
           style={{
