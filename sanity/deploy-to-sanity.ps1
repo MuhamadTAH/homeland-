@@ -620,6 +620,8 @@ const I18N = {
     toastRoomUploaded: '\u0648\u06CE\u0646\u06D5\u06CC \u0698\u0648\u0648\u0631 \u0646\u0648\u06CE\u06A9\u0631\u0627\u06CC\u06D5\u0648\u06D5',
     unpublishedBadge: '\u0695\u06D5\u0634\u0646\u0648\u0648\u0633\u06CC Sanity \u00B7 \u0628\u06B5\u0627\u0648\u0646\u06D5\u06A9\u0631\u0627\u0648\u06D5',
     publishNowBtn: '\u0628\u06B5\u0627\u0648\u06A9\u0631\u062F\u0646\u06D5\u0648\u06D5\u06CC \u0626\u06CE\u0633\u062A\u0627',
+    publishAllBtn: '\u0628\u06B5\u0627\u0648\u06A9\u0631\u062F\u0646\u06D5\u0648\u06D5\u06CC \u0647\u06D5\u0645\u0648\u0648 \u0695\u06D5\u0634\u0646\u0648\u0648\u0633\u06D5\u06A9\u0627\u0646',
+    publishAllHint: '\u0628\u06D5\u0631\u0647\u06D5\u0645\u06D5\u06A9\u0627\u0646 \u0647\u06CE\u0634\u062A\u0627 \u0644\u06D5 \u0695\u06D5\u0634\u0646\u0648\u0648\u0633\u062F\u0627\u0646 \u0648 \u0644\u06D5 \u0648\u06CE\u0628\u0633\u0627\u06CC\u062A \u062F\u06D5\u0631\u0646\u0627\u06A9\u06D5\u0648\u0646 \u062A\u0627 \u0628\u06B5\u0627\u0648 \u0646\u06D5\u06A9\u0631\u06CE\u0646\u06D5\u0648\u06D5.',
     publishedUnit: '\u0628\u06B5\u0627\u0648\u06A9\u0631\u0627\u0648',
     mediaModalTitle: '\u0647\u06D5\u06B5\u0628\u0698\u0627\u0631\u062F\u0646 \u0644\u06D5 \u06A9\u062A\u06CE\u0628\u062E\u0627\u0646\u06D5\u06CC Sanity',
     mediaModalEmpty: '\u0647\u06CC\u0686 \u0648\u06CE\u0646\u06D5\u06CC\u06D5\u06A9 \u0646\u06D5\u062F\u06C6\u0632\u0631\u0627\u06CC\u06D5\u0648\u06D5.',
@@ -810,6 +812,8 @@ const I18N = {
     toastRoomUploaded: 'Room photo updated',
     unpublishedBadge: 'Unpublished Draft',
     publishNowBtn: 'Publish Now',
+    publishAllBtn: 'Publish All Drafts',
+    publishAllHint: 'These pieces are still Sanity Studio drafts and are hidden from the public website until published.',
     publishedUnit: 'published',
     mediaModalTitle: 'Pick from Sanity Media Library',
     mediaModalEmpty: 'No uploaded photos found yet.',
@@ -1361,6 +1365,31 @@ function createWorkspaceComponent(workspaceLang: Lang) {
       }
     };
 
+    const handlePublishAllDrafts = async () => {
+      const draftRows = products.filter((p) => p.isSanityDraft);
+      if (draftRows.length === 0) return;
+      setSaving(true);
+      try {
+        for (const p of draftRows) {
+          const cleanId = p._id.replace(/^drafts\./, '');
+          const rawDoc = await client.fetch<any>(`*[_id == $draftId][0]`, {
+            draftId: p._rawId || `drafts.${cleanId}`,
+          });
+          if (rawDoc) {
+            const { _rev, _createdAt, _updatedAt, ...rest } = rawDoc;
+            await client.createOrReplace({ ...rest, _id: cleanId });
+            await client.delete(`drafts.${cleanId}`).catch(() => {});
+          }
+        }
+        showToast(copy.toastCreated);
+        await loadAll();
+      } catch (err: any) {
+        showToast(err?.message || 'Error');
+      } finally {
+        setSaving(false);
+      }
+    };
+
     const handleStepStock = async (p: ProductRow, delta: number) => {
       const nextStock = Math.max(0, (Number(p.stock) || 0) + delta);
       setProducts((prev) =>
@@ -1751,6 +1780,48 @@ function createWorkspaceComponent(workspaceLang: Lang) {
               {copy.newPieceBtn}
             </button>
           </header>
+
+          {!loading && stats.sanityDrafts > 0 && (
+            <div
+              style={{
+                marginBottom: 18,
+                padding: '12px 16px',
+                borderRadius: 14,
+                border: `1px solid ${COLORS.warn}`,
+                background: COLORS.warnSoft,
+                display: 'flex',
+                flexWrap: 'wrap',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+              }}
+            >
+              <div style={{ fontSize: 13, color: COLORS.ink, fontWeight: 500 }}>
+                <strong>
+                  {stats.sanityDrafts} {copy.unpublishedBadge}
+                </strong>{' '}
+                {'\u00B7'} {copy.publishAllHint}
+              </div>
+              <button
+                type="button"
+                disabled={saving}
+                onClick={handlePublishAllDrafts}
+                style={{
+                  border: 'none',
+                  background: COLORS.ink,
+                  color: COLORS.card,
+                  borderRadius: 10,
+                  padding: '8px 14px',
+                  fontSize: 12,
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {saving ? copy.savingBtn : `${copy.publishAllBtn} (${stats.sanityDrafts})`}
+              </button>
+            </div>
+          )}
 
           {loading ? (
             <div
