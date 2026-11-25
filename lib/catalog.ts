@@ -126,6 +126,7 @@ export const DEFAULT_ROOM_SCENE: RoomScene = {
     { key: 'spot-1', productId: 'bolle-lounge-chair', x: 28, y: 58 },
     { key: 'spot-2', productId: 'rund-side-table', x: 56, y: 72 },
     { key: 'spot-3', productId: 'moln-pendant', x: 48, y: 22 },
+    { key: 'spot-4', productId: 'lugn-boucle-sofa', x: 68, y: 55 },
   ],
 };
 
@@ -200,7 +201,7 @@ export const TINT_BG: Record<TintKey, string> = {
 export const TINT_KEYS = Object.keys(TINT_BG) as TintKey[];
 
 export const BUILTIN_CATEGORIES: { id: string; name: string; tint: TintKey; image: string }[] = [
-  { id: 'seating', name: 'Sofas & Chairs', tint: 'sage', image: imgPath('chair.webp') },
+  { id: 'seating', name: 'Sofas & Chairs', tint: 'sage', image: imgPath('sofa-boucle.webp') },
   { id: 'lighting', name: 'Lamps & Lights', tint: 'butter', image: imgPath('pendant.webp') },
   { id: 'tables', name: 'Tables', tint: 'sand', image: imgPath('table.webp') },
   { id: 'textiles', name: 'Textiles & Cushions', tint: 'blush', image: imgPath('throw.webp') },
@@ -218,6 +219,72 @@ export const BUILTIN_CATEGORY_LIST: Category[] = BUILTIN_CATEGORIES.map((c) => (
 export const BUILTIN_CATEGORY_IDS = BUILTIN_CATEGORY_LIST.map((c) => c.id);
 
 export const RAW_PRODUCTS: Omit<Product, 'status' | 'position'>[] = [
+  {
+    id: 'lugn-boucle-sofa',
+    name: 'Lugn Bouclé 3-Seater Sofa',
+    category: 'seating',
+    price: 1890,
+    rating: 4.9,
+    reviews: 184,
+    tint: 'sand',
+    image: imgPath('sofa-boucle.webp'),
+    scene: imgPath('interior.jpg'),
+    stock: 14,
+    badge: 'Bestseller',
+    blurb:
+      'A sculptural, low-slung three-seater sofa in heavy oat-cream wool bouclé over solid turned oak legs. Generously curved for slow evenings.',
+    finishes: [
+      { name: 'Oat bouclé', color: '#e9e3d7' },
+      { name: 'Warm Stone', color: '#a7a299' },
+      { name: 'Moss bouclé', color: '#5f6b4f' },
+    ],
+    details: [
+      'Belgian wool-blend bouclé, 820 g/m²',
+      'Kiln-dried solid FSC® oak frame & legs',
+      'High-resilience layered foam & feather wrap',
+      'White-glove room placement available',
+    ],
+    dimensions: 'W 228 × D 96 × H 78 cm · Seat height 42 cm',
+    care: 'Vacuum gently weekly with an upholstery brush. Blot spills promptly with a damp linen cloth.',
+    view360Type: 'chair',
+    material: 'Wool bouclé & solid oak',
+    weight: '54 kg',
+    warranty: '5-year structural warranty',
+    leadTime: 'Dispatched in 48 hours',
+  },
+  {
+    id: 'skymning-linen-sofa',
+    name: 'Skymning Oak & Linen Sofa',
+    category: 'seating',
+    price: 2150,
+    rating: 4.9,
+    reviews: 96,
+    tint: 'sage',
+    image: imgPath('sofa-linen.webp'),
+    scene: imgPath('feature-room.jpg'),
+    stock: 9,
+    badge: 'New',
+    blurb:
+      'Deep architectural three-seater sofa in stonewashed sage Belgian linen, resting on an exposed oiled European oak plinth.',
+    finishes: [
+      { name: 'Sage Green', color: '#879c84' },
+      { name: 'Natural linen', color: '#e6dccb' },
+      { name: 'Warm Honey Oak', color: '#c8955a' },
+    ],
+    details: [
+      '100% stonewashed Belgian linen upholstery',
+      'Exposed solid European oak base & tapered legs',
+      'Removable & dry-cleanable cushion covers',
+      'Hand-built mortise-and-tenon joinery',
+    ],
+    dimensions: 'W 236 × D 98 × H 80 cm · Seat height 43 cm',
+    care: 'Fluff feather cushions regularly. Spot clean linen or dry clean removable covers.',
+    view360Type: 'chair',
+    material: 'Belgian linen & oiled European oak',
+    weight: '62 kg',
+    warranty: '5-year structural warranty',
+    leadTime: 'Dispatched in 48 hours',
+  },
   {
     id: 'bolle-lounge-chair',
     name: 'Bolle Lounge Chair',
