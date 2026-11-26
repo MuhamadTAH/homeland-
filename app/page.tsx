@@ -22,9 +22,7 @@ import {
   Layers,
   Leaf,
   MapPin,
-  Plus,
   ShieldCheck,
-  Trash2,
 } from 'lucide-react';
 import {
   BTN_PRIMARY,
@@ -513,7 +511,6 @@ function BrowseCategoriesSection() {
 
 function FavouritesSection() {
   const [activeTab, setActiveTab] = useState('all');
-  const [manageMode, setManageMode] = useState(false);
   const { products } = useStoreProducts();
   const { categories, byId: categoriesById } = useCategories();
   const { locale, t } = useShowroom();
@@ -563,46 +560,6 @@ function FavouritesSection() {
                 </div>
               </div>
             </LayoutGroup>
-
-            {/* Direct Add Product & Delete Mode Buttons */}
-            <div className="flex items-center gap-1.5">
-              <Link
-                href="/add"
-                className="inline-flex h-10 items-center gap-1.5 rounded-full bg-ink px-4 text-[12.5px] font-semibold text-canvas shadow-tile transition-colors hover:bg-accent"
-              >
-                <Plus className="size-3.5" />
-                <span>
-                  {locale === 'ckb'
-                    ? 'زیادکردنی بەرهەم'
-                    : locale === 'ar'
-                    ? 'إضافة منتج'
-                    : 'Add Product'}
-                </span>
-              </Link>
-
-              <button
-                type="button"
-                onClick={() => setManageMode((v) => !v)}
-                className={`inline-flex h-10 items-center gap-1.5 rounded-full px-3.5 text-[12px] font-medium transition-colors ${
-                  manageMode
-                    ? 'bg-danger text-white shadow-tile'
-                    : 'bg-card text-ink-soft shadow-tile hover:text-ink'
-                }`}
-              >
-                <Trash2 className="size-3.5" />
-                <span>
-                  {manageMode
-                    ? locale === 'ckb'
-                      ? 'تەواو'
-                      : 'Done'
-                    : locale === 'ckb'
-                    ? 'سڕینەوەی بەرهەم'
-                    : locale === 'ar'
-                    ? 'حذف منتج'
-                    : 'Delete Mode'}
-                </span>
-              </button>
-            </div>
           </div>
         </SectionHeader>
 
@@ -628,42 +585,9 @@ function FavouritesSection() {
                 <RevealBox delay={(idx % 4) * 0.05}>
                   <ProductCard product={product} />
                 </RevealBox>
-
-                {manageMode && (
-                  <button
-                    type="button"
-                    onClick={() => demoBackend.deleteProduct(product.id)}
-                    className="absolute end-3 top-3 z-20 inline-flex items-center gap-1 rounded-full bg-danger px-3 py-1.5 text-[11.5px] font-semibold text-white shadow-lift transition-transform hover:scale-105"
-                  >
-                    <Trash2 className="size-3.5" />
-                    <span>{locale === 'ckb' ? 'سڕینەوە' : 'Delete'}</span>
-                  </button>
-                )}
               </motion.div>
             ))}
           </AnimatePresence>
-
-          {/* Direct Add New Product Tile at the end of Our Products */}
-          <Link
-            href="/add"
-            className="group flex min-h-[260px] flex-col items-center justify-center rounded-[var(--radius-tile)] border-2 border-dashed border-line bg-card/45 p-6 text-center transition-all hover:border-ink hover:bg-card"
-          >
-            <span className="grid size-12 place-items-center rounded-full bg-sand text-ink transition-transform group-hover:scale-110 group-hover:bg-ink group-hover:text-canvas">
-              <Plus className="size-5" />
-            </span>
-            <p className="mt-3 font-display text-base font-semibold text-ink">
-              {locale === 'ckb'
-                ? '+ زیادکردنی بەرهەمی نوێ'
-                : locale === 'ar'
-                ? '+ إضافة منتج جديد'
-                : '+ Add New Product'}
-            </p>
-            <p className="mt-1 max-w-[200px] text-[12px] text-ink-soft">
-              {locale === 'ckb'
-                ? 'زیادکردنی بەرهەم، تایبەتمەندییەکان، ڕەنگەکان و مۆدێلی ٣٦٠°'
-                : 'Add product, specifications, finishes & 360° view'}
-            </p>
-          </Link>
         </motion.div>
       </div>
     </section>

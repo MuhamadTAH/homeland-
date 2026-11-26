@@ -261,7 +261,7 @@ export const RAW_PRODUCTS: Omit<Product, 'status' | 'position'>[] = [
     reviews: 96,
     tint: 'sage',
     image: imgPath('sofa-linen.webp'),
-    scene: imgPath('feature-room.jpg'),
+    scene: imgPath('sofa-linen-scene.jpg'),
     stock: 9,
     badge: 'New',
     blurb:

@@ -21,7 +21,6 @@ import {
   MapPin,
   Menu,
   Phone,
-  Plus,
   Search,
   X,
 } from 'lucide-react';
@@ -210,20 +209,6 @@ export function StoreHeader() {
             </button>
 
             <Link
-              href="/add"
-              className="inline-flex h-11 items-center gap-1.5 rounded-full bg-sand px-3.5 text-[12.5px] font-semibold text-ink ring-1 ring-line transition-colors hover:bg-ink hover:text-canvas"
-            >
-              <Plus className="size-4 text-accent" />
-              <span className="hidden md:inline">
-                {locale === 'ckb'
-                  ? 'زیادکردنی بەرهەم'
-                  : locale === 'ar'
-                  ? 'إضافة منتج'
-                  : 'Add Product'}
-              </span>
-            </Link>
-
-            <Link
               href="/dashboard"
               className="hidden h-11 items-center gap-1.5 rounded-full px-3 text-[13px] font-medium text-ink-soft transition-colors hover:bg-ink/[0.06] hover:text-ink 2xl:inline-flex"
             >
@@ -273,15 +258,6 @@ export function StoreHeader() {
               >
                 {[
                   ...navLinks,
-                  {
-                    to: '/add',
-                    label:
-                      locale === 'ckb'
-                        ? '+ زیادکردن و سڕینەوەی بەرهەم'
-                        : locale === 'ar'
-                        ? '+ إضافة وحذف المنتجات'
-                        : '+ Add & Manage Products',
-                  },
                   { to: '/dashboard', label: t.catalogStudio },
                 ].map((item) => (
                   <motion.li
