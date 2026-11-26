@@ -1559,16 +1559,19 @@ function createWorkspaceComponent(workspaceLang: Lang) {
           background: COLORS.canvas,
           color: COLORS.ink,
           fontFamily: isRtl
-            ? "'Almarai', 'Readex Pro', 'Noto Sans Arabic', sans-serif"
+            ? "'IBM Plex Sans Arabic', 'Noto Sans Arabic', 'Vazirmatn', sans-serif"
             : 'Inter, -apple-system, BlinkMacSystemFont, sans-serif',
           display: 'grid',
           gridTemplateColumns: '236px minmax(0, 1fr)',
         }}
       >
         <style>{`
-          @import url('https://fonts.googleapis.com/css2?family=Almarai:wght@300;400;700;800&family=Readex+Pro:wght@400;500;600;700&display=swap');
-          [dir="rtl"], [dir="rtl"] input, [dir="rtl"] textarea, [dir="rtl"] button, [dir="rtl"] select, [dir="rtl"] h1, [dir="rtl"] h2, [dir="rtl"] h3 {
-            font-family: 'Almarai', 'Readex Pro', 'Noto Sans Arabic', sans-serif !important;
+          @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&display=swap');
+          [dir="rtl"], [dir="rtl"] *:not([dir="ltr"]) {
+            font-family: 'IBM Plex Sans Arabic', 'Noto Sans Arabic', 'Vazirmatn', sans-serif !important;
+            letter-spacing: normal !important;
+            font-variant-ligatures: normal;
+            font-feature-settings: "kern" 1, "liga" 1, "calt" 1;
           }
         `}</style>
         {/* Left Navigation */}
